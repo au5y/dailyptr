@@ -4,9 +4,37 @@ A self-hosted daily practice app: a short multiple-choice quiz, a small
 coding problem that compiles and runs your real C++ in a sandbox, and a
 self-graded concept check. Difficulty ramps from easy on Monday to expert
 on Sunday. Points and a daily streak track your progress, and any day you
-miss stays open so you can go back and catch up later.
+miss stays open - a calendar and list view in History let you jump back and
+catch up later.
 
 See [`PLAN.md`](./PLAN.md) for the phased roadmap this scaffold is step one of.
+
+> **Note:** this project is mostly "vibe coded" - built quickly with heavy AI
+> assistance and comparatively light manual review. Treat it as a personal
+> tool rather than a hardened, audited codebase.
+
+## Tracks
+
+The app supports multiple independent daily-challenge tracks, switchable from
+the topbar - each has its own content pool, quiz/code/concept flow, and its
+own streak/points (see `backend/app/config.py: TRACKS`):
+
+- **C++ Core** (`cpp_core`) - general C++ language, STL, and OOD/design-pattern
+  questions, plus backend-service-flavored content (HTTP semantics, caching,
+  rate limiting, load balancing, distributed systems) bundled into the same
+  pool for variety - all real, compiled coding problems.
+- **Learning HTML/CSS** (`html_css`) - no compiler for markup/styles, so this
+  track's "coding" step is self-checked: you submit your attempt and the
+  reference solution is revealed to compare against, instead of a pass/fail
+  test run (see `uses_sandbox` in `config.TRACKS` and `routers/coding.py`).
+
+Each day can be reset from the "Reset day" button next to the difficulty
+badge, if you want to retry the same quiz/code/concept check (it's the same
+content - selection is deterministic per date+track - just with progress and
+points for that day cleared). The Code tab also has an optional "Block mode"
+toggle (off by default) that swaps the free-text editor for Duolingo-style
+tappable pieces of the reference solution, shuffled, for assembling the
+answer instead of typing it - handy on mobile.
 
 ## How it's built
 
@@ -81,20 +109,28 @@ defaults):
 | `SANDBOX_IMAGE` | Image tag used for the docker sandbox backend |
 | `SANDBOX_TIMEOUT_SECONDS` | Compile+run wall-clock limit per submission |
 | `SANDBOX_MEMORY_LIMIT` / `SANDBOX_CPU_LIMIT` | Docker resource limits per submission |
+| `SANDBOX_TMP_DIR` / `SANDBOX_HOST_TMP_DIR` | Docker-outside-of-Docker path translation for the sandbox's bind mount - already wired up in `docker-compose.yml`, only relevant if you change that setup |
 | `FRONTEND_DIR` | Override where static frontend files are served from |
 | `ANTHROPIC_API_KEY` | Optional. If set, enables AI-grading of concept-check free responses via the Anthropic API. Unset -> falls back to the plain self-graded "Got it / Missed it" flow |
 | `ANTHROPIC_MODEL` | Model used for AI grading, defaults to a cheap Haiku model |
 
 ## Adding content
 
-Open `backend/app/content/quiz_bank.py`, `coding_bank.py`, or
-`concept_bank.py` and append an entry in the same shape as the existing
-ones, tagged with a `difficulty` of `easy` / `medium` / `hard` / `expert`.
-Restart the app (or re-run seeding) and it's picked up automatically -
-`seed_content()` only inserts entries that aren't already in the DB, so this
-is always safe to re-run. Coding problems are the most involved to add
-because you write the test harness yourself (see the docstring at the top
-of `coding_bank.py`); quiz questions and concept checks are just data.
+Each track's quiz/coding/concept banks live as plain Python data in
+`backend/app/content/`: `quiz_bank.py` / `coding_bank.py` / `concept_bank.py`
+for `cpp_core`, `cpp_backend_bank.py` for `cpp_backend`, and
+`html_css_bank.py` for `html_css`. Append an entry in the same shape as the
+existing ones in the relevant file, tagged with a `difficulty` of
+`easy` / `medium` / `hard` / `expert`. Restart the app (or re-run seeding)
+and it's picked up automatically - `seed_content()` only inserts entries not
+already in the DB (keyed by track + text), so this is always safe to re-run.
+Coding problems for sandboxed tracks (`cpp_core`, `cpp_backend`) are the most
+involved to add because you write the test harness yourself (see the
+docstring at the top of `coding_bank.py`); for the non-sandboxed `html_css`
+track, a "coding" entry needs a `reference_solution` instead of a
+`harness_template`. Quiz questions and concept checks are just data either
+way. To add a whole new track, add it to `config.TRACKS` and give it its own
+bank file(s) wired into `seed.py`.
 
 ## Security note
 

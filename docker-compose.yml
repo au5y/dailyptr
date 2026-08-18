@@ -24,8 +24,16 @@ services:
       # Optional: enables AI grading of concept-check answers. Unset on the
       # host -> the app falls back to the plain self-graded flow.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Docker-outside-of-Docker path translation for the sandbox's bind mount
+      # (see app/sandbox/docker_runner.py) - SANDBOX_TMP_DIR is where this
+      # container itself sees the shared directory below; SANDBOX_HOST_TMP_DIR
+      # is that same directory's path on the actual host, which is what the
+      # sibling `docker run` (sent to the host daemon over the socket) needs.
+      - SANDBOX_TMP_DIR=/sandbox-tmp
+      - SANDBOX_HOST_TMP_DIR=${PWD}/data/sandbox-tmp
     volumes:
       - ./data:/data
+      - ./data/sandbox-tmp:/sandbox-tmp
       - ./frontend:/app/frontend:ro
       # Docker-outside-of-Docker: lets the web container ask the HOST docker
       # daemon to spin up sandbox containers as siblings, not nested inside it.

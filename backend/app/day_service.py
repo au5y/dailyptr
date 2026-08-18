@@ -12,26 +12,29 @@ from sqlalchemy.orm import Session
 from . import config, models
 
 
-def get_or_create_day(db: Session, target_date: date_type) -> models.Day:
+def get_or_create_day(db: Session, target_date: date_type, track: str = config.DEFAULT_TRACK) -> models.Day:
     if target_date > date_type.today():
         raise HTTPException(status_code=400, detail="That day hasn't unlocked yet.")
+    if track not in config.TRACKS:
+        raise HTTPException(status_code=404, detail=f"Unknown track '{track}'.")
 
-    existing = db.query(models.Day).filter(models.Day.date == target_date).one_or_none()
+    existing = db.query(models.Day).filter(models.Day.date == target_date, models.Day.track == track).one_or_none()
     if existing:
         return existing
 
     weekday = target_date.weekday()
     difficulty = config.WEEKDAY_DIFFICULTY[weekday].value
-    rng = random.Random(target_date.toordinal())  # deterministic per-date pick
+    track_salt = sum(ord(c) for c in track)
+    rng = random.Random(target_date.toordinal() * 1000 + track_salt)  # deterministic per (date, track)
 
-    quiz_pool = db.query(models.QuizQuestion).filter(models.QuizQuestion.difficulty == difficulty).all()
-    coding_pool = db.query(models.CodingProblem).filter(models.CodingProblem.difficulty == difficulty).all()
-    concept_pool = db.query(models.ConceptCheck).filter(models.ConceptCheck.difficulty == difficulty).all()
+    quiz_pool = db.query(models.QuizQuestion).filter(models.QuizQuestion.difficulty == difficulty, models.QuizQuestion.track == track).all()
+    coding_pool = db.query(models.CodingProblem).filter(models.CodingProblem.difficulty == difficulty, models.CodingProblem.track == track).all()
+    concept_pool = db.query(models.ConceptCheck).filter(models.ConceptCheck.difficulty == difficulty, models.ConceptCheck.track == track).all()
 
     if not quiz_pool or not coding_pool or not concept_pool:
         raise HTTPException(
             status_code=500,
-            detail=f"Content bank is missing '{difficulty}' entries - run seeding first.",
+            detail=f"Content bank is missing '{difficulty}' entries for track '{track}' - run seeding first.",
         )
 
     n_quiz = min(config.QUESTIONS_PER_DAY, len(quiz_pool))
@@ -41,6 +44,7 @@ def get_or_create_day(db: Session, target_date: date_type) -> models.Day:
 
     day = models.Day(
         date=target_date,
+        track=track,
         weekday=weekday,
         difficulty=difficulty,
         quiz_question_ids=quiz_ids,

@@ -24,6 +24,7 @@ def submit_quiz(day_id: int, body: schemas.QuizSubmitIn, db: Session = Depends(g
 
     results: dict[int, bool] = {}
     explanations: dict[int, str] = {}
+    correct_indices: dict[int, int] = {}
     correct = 0
     for qid in day.quiz_question_ids:
         q = by_id.get(qid)
@@ -35,6 +36,7 @@ def submit_quiz(day_id: int, body: schemas.QuizSubmitIn, db: Session = Depends(g
             correct += 1
         results[qid] = is_correct
         explanations[qid] = q.explanation
+        correct_indices[qid] = q.correct_index
 
     day.quiz_completed = True
     day.quiz_correct = correct
@@ -51,4 +53,5 @@ def submit_quiz(day_id: int, body: schemas.QuizSubmitIn, db: Session = Depends(g
         points_awarded=points + bonus,
         results=results,
         explanations=explanations,
+        correct_indices=correct_indices,
     )

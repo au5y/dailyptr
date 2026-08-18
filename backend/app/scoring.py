@@ -44,8 +44,8 @@ def maybe_award_completion_bonus(day: models.Day) -> float:
     return bonus
 
 
-def compute_stats(db: Session) -> dict:
-    days = db.query(models.Day).order_by(models.Day.date).all()
+def compute_stats(db: Session, track: str = config.DEFAULT_TRACK) -> dict:
+    days = db.query(models.Day).filter(models.Day.track == track).order_by(models.Day.date).all()
     completed_dates = {d.date for d in days if d.fully_completed}
     total_points = sum(d.points_earned for d in days)
     days_completed = len(completed_dates)

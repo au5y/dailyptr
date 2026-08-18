@@ -1,6 +1,6 @@
 from datetime import datetime, date as date_type
 
-from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, JSON, ForeignKey, Text
+from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, JSON, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -10,6 +10,7 @@ class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     difficulty: Mapped[str] = mapped_column(String(16), index=True)
     topic: Mapped[str] = mapped_column(String(64))
     question: Mapped[str] = mapped_column(Text)
@@ -22,6 +23,7 @@ class CodingProblem(Base):
     __tablename__ = "coding_problems"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     difficulty: Mapped[str] = mapped_column(String(16), index=True)
     topic: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(String(128))
@@ -30,17 +32,24 @@ class CodingProblem(Base):
     # harness_template contains the literal token {{USER_CODE}} where the
     # user's submitted code is spliced in before compiling. It embeds its
     # own test cases and prints "RESULT:<passed>/<total>" as the last line.
-    harness_template: Mapped[str] = mapped_column(Text)
+    # Only used for tracks with uses_sandbox=True (see config.TRACKS) - empty
+    # for tracks like html_css that self-check instead of compiling.
+    harness_template: Mapped[str] = mapped_column(Text, default="")
     test_case_summary: Mapped[str] = mapped_column(Text, default="")  # human-readable, shown to user
     # Curated cppreference.com (etc.) links relevant to this problem's topic,
     # e.g. [{"label": "std::string", "url": "https://en.cppreference.com/w/cpp/string/basic_string"}].
     docs: Mapped[list] = mapped_column(JSON, default=list)
+    # Non-sandbox tracks only: a reference solution revealed after the user
+    # submits their own attempt, instead of a compiled pass/fail (see
+    # routers/coding.py). Never sent to the client before submission.
+    reference_solution: Mapped[str] = mapped_column(Text, default="")
 
 
 class ConceptCheck(Base):
     __tablename__ = "concept_checks"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     difficulty: Mapped[str] = mapped_column(String(16), index=True)
     topic: Mapped[str] = mapped_column(String(64))
     prompt: Mapped[str] = mapped_column(Text)
@@ -51,9 +60,11 @@ class Day(Base):
     """One calendar day's worth of challenge content and the user's progress on it."""
 
     __tablename__ = "days"
+    __table_args__ = (UniqueConstraint("date", "track", name="uq_days_date_track"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    date: Mapped[date_type] = mapped_column(Date, unique=True, index=True)
+    date: Mapped[date_type] = mapped_column(Date, index=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     weekday: Mapped[int] = mapped_column(Integer)  # 0=Mon .. 6=Sun
     difficulty: Mapped[str] = mapped_column(String(16))
 

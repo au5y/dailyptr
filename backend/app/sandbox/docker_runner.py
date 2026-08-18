@@ -43,7 +43,8 @@ def run(harness_template: str, user_code: str) -> SandboxResult:
         return SandboxResult(False, 0, 0, "", "docker CLI is not available in this environment.")
 
     source = build_source(harness_template, user_code)
-    with tempfile.TemporaryDirectory(prefix="cpp-sandbox-") as tmpdir:
+    tmpdir = tempfile.mkdtemp(prefix="cpp-sandbox-", dir=config.SANDBOX_TMP_DIR)
+    try:
         src_path = os.path.join(tmpdir, "main.cpp")
         script_path = os.path.join(tmpdir, "run.sh")
         with open(src_path, "w") as f:
@@ -60,6 +61,14 @@ def run(harness_template: str, user_code: str) -> SandboxResult:
         os.chmod(src_path, 0o666)
         os.chmod(script_path, 0o777)
 
+        # `docker run -v` below is sent to the HOST daemon (see module
+        # docstring) - it needs the HOST's own path to this directory, which
+        # only matches our container-local `tmpdir` when SANDBOX_HOST_TMP_DIR
+        # isn't configured (i.e. we're not itself running inside a container).
+        mount_path = tmpdir
+        if config.SANDBOX_HOST_TMP_DIR:
+            mount_path = os.path.join(config.SANDBOX_HOST_TMP_DIR, os.path.basename(tmpdir))
+
         cmd = [
             "docker", "run", "--rm",
             "--network", "none",
@@ -68,7 +77,7 @@ def run(harness_template: str, user_code: str) -> SandboxResult:
             "--pids-limit", "64",
             "--security-opt", "no-new-privileges",
             "--cap-drop", "ALL",
-            "-v", f"{tmpdir}:/sandbox:rw",
+            "-v", f"{mount_path}:/sandbox:rw",
             "-w", "/sandbox",
             "--user", "10001:10001",
             config.SANDBOX_IMAGE,
@@ -91,3 +100,5 @@ def run(harness_template: str, user_code: str) -> SandboxResult:
             return make_result(1, stdout.replace(TIMEOUT_MARKER, "").strip(), proc.stderr, timed_out=True)
 
         return make_result(proc.returncode, stdout, proc.stderr, timed_out=False)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)

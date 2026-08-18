@@ -78,4 +78,49 @@ public:
         idx[key] = items.begin();
     }
 };""",
+    "Parse a Query String": """map<string,string> parseQueryString(const string& qs) {
+    map<string,string> out;
+    stringstream ss(qs);
+    string pair;
+    while (getline(ss, pair, '&')) {
+        if (pair.empty()) continue;
+        size_t eq = pair.find('=');
+        if (eq == string::npos) out[pair] = "";
+        else out[pair.substr(0, eq)] = pair.substr(eq + 1);
+    }
+    return out;
+}""",
+    "HTTP Status Category": """string statusCategory(int code) {
+    if (code >= 100 && code < 200) return "Informational";
+    if (code >= 200 && code < 300) return "Success";
+    if (code >= 300 && code < 400) return "Redirection";
+    if (code >= 400 && code < 500) return "Client Error";
+    if (code >= 500 && code < 600) return "Server Error";
+    return "Unknown";
+}""",
+    "Round-Robin Load Balancer": """class RoundRobinBalancer {
+    vector<string> servers;
+    size_t idx = 0;
+public:
+    RoundRobinBalancer(vector<string> servers) : servers(servers) {}
+    string next() {
+        string s = servers[idx];
+        idx = (idx + 1) % servers.size();
+        return s;
+    }
+};""",
+    "Token Bucket Rate Limiter": """class TokenBucket {
+    double capacity, refillPerSecond, tokens, lastTime;
+public:
+    TokenBucket(double capacity, double refillPerSecond)
+        : capacity(capacity), refillPerSecond(refillPerSecond), tokens(capacity), lastTime(0.0) {}
+    bool allow(double nowSeconds, double cost = 1.0) {
+        double elapsed = nowSeconds - lastTime;
+        tokens = min(capacity, tokens + elapsed * refillPerSecond);
+        lastTime = nowSeconds;
+        if (tokens < cost) return false;
+        tokens -= cost;
+        return true;
+    }
+};""",
 }

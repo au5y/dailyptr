@@ -7,79 +7,181 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">C++ Daily Skill Refresher</div>
-    <div class="stats" id="stats-bar">
-      <span class="stat"><strong id="stat-points">0</strong> pts</span>
-      <span class="stat">🔥 <strong id="stat-streak">0</strong> day streak</span>
-      <span class="stat" id="stat-missed-wrap" hidden><strong id="stat-missed">0</strong> missed</span>
-      <button id="history-toggle" class="btn btn-ghost">History</button>
+  <div class="app-shell">
+
+    <div class="blob-bg" aria-hidden="true">
+      <div class="blob blob-teal"></div>
+      <div class="blob blob-violet"></div>
+      <div class="blob blob-diff" id="blob-diff"></div>
+      <div class="blob blob-yellow"></div>
+      <div class="blob blob-olive"></div>
     </div>
-  </header>
 
-  <div class="vibe-disclaimer">
-    ⚠️ Mostly vibe coded - built quickly with heavy AI assistance and light review. Expect rough edges.
-  </div>
+    <main class="shell-main">
 
-  <main id="app">
+      <header class="topbar">
+        <div class="brand">C++ Daily Refresher</div>
+        <div class="stats">
+          <span class="stat-points">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L14.7 9.2 L22 9.9 L16.4 14.9 L18.3 22 L12 18 L5.7 22 L7.6 14.9 L2 9.9 L9.3 9.2 Z" fill="var(--yellow)"/></svg>
+            <strong id="stat-points">0</strong>
+          </span>
+          <span class="stat-streak">
+            <svg class="flame-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--orange)"/>
+              <path d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z" fill="var(--yellow)"/>
+            </svg>
+            <strong id="stat-streak">0</strong>
+          </span>
+          <span class="stat" id="stat-missed-wrap" hidden><strong id="stat-missed">0</strong>&nbsp;missed</span>
+          <button id="history-toggle" class="btn-chunky btn-ghost">History</button>
+        </div>
+      </header>
 
-    <section id="challenge-view">
-      <div class="challenge-header">
-        <div>
-          <h1 id="challenge-date">Loading…</h1>
+      <nav class="track-switcher" id="track-switcher" aria-label="Track"></nav>
+
+      <section id="challenge-view">
+
+        <div class="mascot-row">
+          <svg class="mascot-flame" width="52" height="52" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--orange)"/>
+            <path d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z" fill="var(--yellow)"/>
+            <circle cx="10" cy="13.5" r="1" fill="var(--bg)"/>
+            <circle cx="13.6" cy="13.5" r="1" fill="var(--bg)"/>
+          </svg>
+          <div class="mascot-bubble" id="mascot-msg">Loading today's challenge…</div>
+        </div>
+
+        <div class="difficulty-row">
           <span id="challenge-badge" class="badge">-</span>
           <span id="challenge-late" class="badge badge-late" hidden>catching up</span>
+          <button id="reset-day-btn" class="reset-day-btn" title="Reset today's progress and try again">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>
+            Reset day
+          </button>
         </div>
-      </div>
 
-      <nav class="tabs" id="tabs">
-        <button class="tab active" data-tab="quiz">1. Quiz <span id="tab-quiz-check"></span></button>
-        <button class="tab" data-tab="code">2. Code <span id="tab-code-check"></span></button>
-        <button class="tab" data-tab="concept">3. Concept Check <span id="tab-concept-check"></span></button>
-      </nav>
+        <nav class="node-nav" id="tabs">
+          <button class="node-btn" data-tab="quiz">
+            <span class="node-circle" id="node-quiz">
+              <span class="node-icon">?</span>
+              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="node-label">Quiz</span>
+          </button>
+          <button class="node-btn" data-tab="code">
+            <span class="node-circle" id="node-code">
+              <span class="node-icon" style="font-family:var(--font-mono); font-size:1.1rem;">&lt;/&gt;</span>
+              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="node-label">Code</span>
+          </button>
+          <button class="node-btn" data-tab="concept">
+            <span class="node-circle" id="node-concept">
+              <svg class="node-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.8.6 1.3V17h5.8v-1.8c0-.5.2-1 .6-1.3A6 6 0 0 0 12 3z" fill="var(--bg)"/><rect x="9.5" y="19" width="5" height="2.2" rx="1" fill="var(--bg)"/></svg>
+              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="node-label">Concept</span>
+          </button>
+        </nav>
 
-      <section class="panel" id="panel-quiz">
-        <div id="quiz-questions"></div>
-        <button id="quiz-submit" class="btn btn-primary">Submit Quiz</button>
-        <div id="quiz-result" class="result-box" hidden></div>
+        <section class="blob-panel" id="panel-quiz">
+          <div id="quiz-questions"></div>
+          <button id="quiz-submit" class="btn-chunky btn-teal">Check Answers</button>
+          <div id="quiz-result" class="panel-result" hidden></div>
+        </section>
+
+        <section class="blob-panel" id="panel-code" hidden>
+          <h2 id="code-title" style="margin:0 0 8px; font-family:var(--font-display); font-size:1.15rem;"></h2>
+          <p id="code-description" class="prose"></p>
+          <p class="hint" id="code-tests"></p>
+          <div id="code-docs" class="docs-row" hidden>
+            <span class="docs-label">DOCS</span>
+            <span id="code-docs-links"></span>
+          </div>
+
+          <label class="block-mode-toggle">
+            <input type="checkbox" id="block-mode-toggle">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Block mode - assemble the code from pieces instead of typing</span>
+          </label>
+
+          <textarea id="code-editor" spellcheck="false"></textarea>
+
+          <div id="code-blocks" class="blocks-wrap" hidden>
+            <div class="blocks-assembly" id="blocks-assembly">
+              <p class="blocks-empty-hint" id="blocks-empty-hint">Tap pieces below to add them here, in order.</p>
+            </div>
+            <div class="blocks-bank" id="blocks-bank"></div>
+            <button id="blocks-clear" class="btn-chunky btn-ghost blocks-clear-btn">Clear assembly</button>
+          </div>
+
+          <button id="code-submit" class="btn-chunky btn-teal code-submit-btn">Compile &amp; Run</button>
+          <pre id="code-result" class="panel-result" hidden></pre>
+          <div id="code-reference" class="model-answer-box" hidden></div>
+        </section>
+
+        <section class="blob-panel" id="panel-concept" hidden>
+          <p id="concept-prompt" class="prose"></p>
+          <textarea id="concept-notes" placeholder="Jot your own answer here first - AI grading (if enabled) reads this."></textarea>
+
+          <div class="btn-row">
+            <button id="concept-ai-grade" class="btn-chunky btn-violet" hidden>AI-grade my answer</button>
+            <button id="concept-reveal" class="btn-chunky btn-ghost">Reveal Model Answer</button>
+          </div>
+
+          <div id="concept-ai-feedback" class="ai-feedback" hidden>
+            <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true" style="flex:0 0 auto;"><path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--violet)"/></svg>
+            <div class="ai-bubble" id="concept-ai-feedback-text"></div>
+          </div>
+
+          <div id="concept-answer" class="model-answer-box" hidden></div>
+
+          <div id="concept-grade" hidden>
+            <p class="hint">Be honest - did you get the core idea?</p>
+            <div class="btn-row">
+              <button id="concept-got-it" class="btn-chunky btn-green">Got it</button>
+              <button id="concept-missed" class="btn-chunky btn-ghost">Missed it</button>
+            </div>
+          </div>
+
+          <div id="concept-result" class="panel-result" hidden></div>
+        </section>
+
       </section>
 
-      <section class="panel" id="panel-code" hidden>
-        <h2 id="code-title"></h2>
-        <p id="code-description" class="prose"></p>
-        <p class="hint" id="code-tests"></p>
-        <div id="code-docs" class="docs-panel" hidden>
-          <span class="docs-label">Docs:</span>
-          <span id="code-docs-links"></span>
+      <section id="history-view" hidden>
+        <div class="history-head">
+          <h1>Your Trail</h1>
+          <p class="hint">Missed days stay open - jump to any day and catch up any time.</p>
+          <div class="view-toggle">
+            <button id="history-view-calendar" class="view-toggle-btn active">Calendar</button>
+            <button id="history-view-list" class="view-toggle-btn">List</button>
+          </div>
         </div>
-        <textarea id="code-editor" spellcheck="false"></textarea>
-        <button id="code-submit" class="btn btn-primary">Compile &amp; Run</button>
-        <pre id="code-result" class="result-box" hidden></pre>
+
+        <div id="calendar-view">
+          <div class="calendar-nav">
+            <button id="cal-prev" class="btn-chunky btn-ghost cal-nav-btn" aria-label="Previous month">&lsaquo;</button>
+            <div class="calendar-month-label" id="cal-month-label"></div>
+            <button id="cal-next" class="btn-chunky btn-ghost cal-nav-btn" aria-label="Next month">&rsaquo;</button>
+          </div>
+          <div class="calendar-weekdays">
+            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+          <div class="calendar-legend">
+            <span><i class="legend-dot done"></i> done</span>
+            <span><i class="legend-dot late"></i> late</span>
+            <span><i class="legend-dot open"></i> open</span>
+          </div>
+        </div>
+
+        <div id="history-list" hidden></div>
       </section>
 
-      <section class="panel" id="panel-concept" hidden>
-        <p id="concept-prompt" class="prose"></p>
-        <textarea id="concept-notes" placeholder="Jot your own answer here first - AI grading (if enabled) reads this."></textarea>
-        <button id="concept-ai-grade" class="btn btn-secondary" hidden>🤖 AI-grade my answer</button>
-        <div id="concept-ai-feedback" class="result-box" hidden></div>
-        <button id="concept-reveal" class="btn btn-secondary">Reveal Model Answer</button>
-        <div id="concept-answer" class="result-box" hidden></div>
-        <div id="concept-grade" hidden>
-          <p>Be honest - did you get the core idea?</p>
-          <button id="concept-got-it" class="btn btn-primary">✅ Got it</button>
-          <button id="concept-missed" class="btn btn-ghost">❌ Missed it</button>
-        </div>
-        <div id="concept-result" class="result-box" hidden></div>
-      </section>
-    </section>
-
-    <section id="history-view" hidden>
-      <h1>History</h1>
-      <p class="hint">Click any day to open it - missed days stay available so you can go back and catch up.</p>
-      <div id="history-list"></div>
-    </section>
-
-  </main>
+    </main>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

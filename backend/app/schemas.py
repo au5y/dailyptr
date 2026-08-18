@@ -42,11 +42,18 @@ class ConceptCheckOut(BaseModel):
     model_answer: str
 
 
+class TrackOut(BaseModel):
+    id: str
+    name: str
+    uses_sandbox: bool
+
+
 class DayOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     date: date_type
+    track: str
     weekday: int
     difficulty: str
     quiz_completed: bool
@@ -79,6 +86,9 @@ class QuizSubmitOut(BaseModel):
     points_awarded: float
     results: dict[int, bool]
     explanations: dict[int, str]
+    # Revealed only now that the quiz is graded - lets the UI highlight the
+    # correct choice, not just whether the user's pick was right.
+    correct_indices: dict[int, int]
 
 
 class CodeSubmitIn(BaseModel):
@@ -92,6 +102,9 @@ class CodeSubmitOut(BaseModel):
     output: str
     error: str
     points_awarded: float
+    # Only set for non-sandboxed tracks (see config.TRACKS) - the reference
+    # solution to compare your own attempt against, revealed after submitting.
+    reference_solution: str | None = None
 
 
 class ConceptSubmitIn(BaseModel):
@@ -103,6 +116,13 @@ class ConceptSubmitOut(BaseModel):
 
     model_answer: str
     points_awarded: float
+
+
+class CodeBlocksOut(BaseModel):
+    # Shuffled lines of the reference solution, for the optional Duolingo-style
+    # "assemble the code" mobile mode - see routers/coding.py. Only fetched
+    # when the user turns that mode on; a plain ChallengeOut never includes it.
+    lines: list[str]
 
 
 class ConceptGradeIn(BaseModel):
