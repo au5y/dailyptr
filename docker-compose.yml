@@ -21,6 +21,9 @@ services:
       - SANDBOX_MODE=docker
       - SANDBOX_IMAGE=cpp-refresher-sandbox:latest
       - DATABASE_URL=sqlite:////data/app.db
+      # Optional: enables AI grading of concept-check answers. Unset on the
+      # host -> the app falls back to the plain self-graded flow.
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
       - ./data:/data
       - ./frontend:/app/frontend:ro

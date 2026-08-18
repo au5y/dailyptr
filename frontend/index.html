@@ -17,6 +17,10 @@
     </div>
   </header>
 
+  <div class="vibe-disclaimer">
+    ⚠️ Mostly vibe coded - built quickly with heavy AI assistance and light review. Expect rough edges.
+  </div>
+
   <main id="app">
 
     <section id="challenge-view">
@@ -44,6 +48,10 @@
         <h2 id="code-title"></h2>
         <p id="code-description" class="prose"></p>
         <p class="hint" id="code-tests"></p>
+        <div id="code-docs" class="docs-panel" hidden>
+          <span class="docs-label">Docs:</span>
+          <span id="code-docs-links"></span>
+        </div>
         <textarea id="code-editor" spellcheck="false"></textarea>
         <button id="code-submit" class="btn btn-primary">Compile &amp; Run</button>
         <pre id="code-result" class="result-box" hidden></pre>
@@ -51,7 +59,9 @@
 
       <section class="panel" id="panel-concept" hidden>
         <p id="concept-prompt" class="prose"></p>
-        <textarea id="concept-notes" placeholder="Jot your own answer here first (not submitted - just for you to compare against the model answer)."></textarea>
+        <textarea id="concept-notes" placeholder="Jot your own answer here first - AI grading (if enabled) reads this."></textarea>
+        <button id="concept-ai-grade" class="btn btn-secondary" hidden>🤖 AI-grade my answer</button>
+        <div id="concept-ai-feedback" class="result-box" hidden></div>
         <button id="concept-reveal" class="btn btn-secondary">Reveal Model Answer</button>
         <div id="concept-answer" class="result-box" hidden></div>
         <div id="concept-grade" hidden>

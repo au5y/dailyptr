@@ -1,5 +1,6 @@
 const API = "/api";
 let current = null; // currently loaded ChallengeOut
+let appConfig = { ai_grading_enabled: false };
 
 // ---------- fetch helpers ----------
 async function getJSON(url) {
@@ -132,6 +133,23 @@ function renderCode(coding, day) {
   document.getElementById("code-title").textContent = coding.title;
   document.getElementById("code-description").textContent = coding.description;
   document.getElementById("code-tests").textContent = `Test cases: ${coding.test_case_summary}`;
+
+  const docsPanel = document.getElementById("code-docs");
+  const docsLinks = document.getElementById("code-docs-links");
+  docsLinks.innerHTML = "";
+  const docs = coding.docs || [];
+  docsPanel.hidden = docs.length === 0;
+  docs.forEach((d, i) => {
+    const a = document.createElement("a");
+    a.href = d.url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.className = "docs-link";
+    a.textContent = d.label;
+    docsLinks.appendChild(a);
+    if (i < docs.length - 1) docsLinks.appendChild(document.createTextNode(" · "));
+  });
+
   const editor = document.getElementById("code-editor");
   editor.value = coding.starter_code;
   const resultBox = document.getElementById("code-result");
@@ -174,10 +192,16 @@ function renderConcept(concept, day) {
   const answerBox = document.getElementById("concept-answer");
   const gradeBox = document.getElementById("concept-grade");
   const resultBox = document.getElementById("concept-result");
+  const aiFeedbackBox = document.getElementById("concept-ai-feedback");
+  const aiGradeBtn = document.getElementById("concept-ai-grade");
   answerBox.hidden = true;
   answerBox.textContent = concept.model_answer;
   gradeBox.hidden = true;
   resultBox.hidden = true;
+  aiFeedbackBox.hidden = true;
+  aiGradeBtn.hidden = day.concept_completed || !appConfig.ai_grading_enabled;
+  aiGradeBtn.disabled = false;
+  aiGradeBtn.textContent = "🤖 AI-grade my answer";
   document.getElementById("concept-reveal").hidden = day.concept_completed;
   if (day.concept_completed) {
     resultBox.hidden = false;
@@ -191,6 +215,36 @@ document.getElementById("concept-reveal").addEventListener("click", () => {
   document.getElementById("concept-answer").hidden = false;
   document.getElementById("concept-grade").hidden = false;
   document.getElementById("concept-reveal").hidden = true;
+});
+
+document.getElementById("concept-ai-grade").addEventListener("click", async () => {
+  const btn = document.getElementById("concept-ai-grade");
+  const notes = document.getElementById("concept-notes").value;
+  if (!notes.trim()) {
+    alert("Jot down your own answer first, then AI-grade it.");
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Grading…";
+  try {
+    const result = await postJSON(`${API}/concept/${current.day.id}/ai-grade`, { notes });
+    const aiFeedbackBox = document.getElementById("concept-ai-feedback");
+    aiFeedbackBox.hidden = false;
+    aiFeedbackBox.className = "result-box " + (result.correct ? "pass" : "fail");
+    aiFeedbackBox.textContent = `${result.correct ? "✅ Looks correct" : "❌ Not quite"} - ${result.feedback}`;
+    // Reveal the model answer + grade buttons, and pre-highlight the AI's suggested verdict -
+    // the user still clicks Got it / Missed it themselves to finalize (they can override the AI).
+    document.getElementById("concept-answer").hidden = false;
+    document.getElementById("concept-grade").hidden = false;
+    document.getElementById("concept-reveal").hidden = true;
+    document.getElementById("concept-got-it").classList.toggle("btn-suggested", result.correct);
+    document.getElementById("concept-missed").classList.toggle("btn-suggested", !result.correct);
+  } catch (e) {
+    alert(`AI grading unavailable: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🤖 AI-grade my answer";
+  }
 });
 
 async function submitConceptGrade(gotIt) {
@@ -267,6 +321,7 @@ document.getElementById("history-toggle").addEventListener("click", async () => 
 // ---------- boot ----------
 (async function init() {
   try {
+    appConfig = await getJSON(`${API}/config`);
     await refreshStats();
     const today = await getJSON(`${API}/today`);
     renderChallenge(today);

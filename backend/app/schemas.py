@@ -13,6 +13,11 @@ class QuizQuestionOut(BaseModel):
     # correct_index intentionally omitted - not sent to the client until graded
 
 
+class DocLink(BaseModel):
+    label: str
+    url: str
+
+
 class CodingProblemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +26,7 @@ class CodingProblemOut(BaseModel):
     description: str
     starter_code: str
     test_case_summary: str
+    docs: list[DocLink] = []
 
 
 class ConceptCheckOut(BaseModel):
@@ -97,6 +103,19 @@ class ConceptSubmitOut(BaseModel):
 
     model_answer: str
     points_awarded: float
+
+
+class ConceptGradeIn(BaseModel):
+    notes: str
+
+
+class ConceptGradeOut(BaseModel):
+    correct: bool
+    feedback: str
+
+
+class AppConfigOut(BaseModel):
+    ai_grading_enabled: bool
 
 
 class StatsOut(BaseModel):

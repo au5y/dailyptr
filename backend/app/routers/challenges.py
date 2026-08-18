@@ -3,11 +3,16 @@ from datetime import date as date_type
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, scoring
+from .. import config, models, schemas, scoring
 from ..database import get_db
 from ..day_service import get_or_create_day
 
 router = APIRouter(prefix="/api", tags=["challenges"])
+
+
+@router.get("/config", response_model=schemas.AppConfigOut)
+def get_app_config():
+    return schemas.AppConfigOut(ai_grading_enabled=bool(config.ANTHROPIC_API_KEY))
 
 
 def _build_challenge_out(db: Session, day: models.Day) -> schemas.ChallengeOut:

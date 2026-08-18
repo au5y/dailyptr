@@ -8,6 +8,8 @@ Seed coding-problem bank. Each problem supplies:
     final line exactly "RESULT:<passed>/<total>" - that's the only line the
     grader (app/sandbox) actually parses, the rest is just for the user to
     read in their submission output.
+  - docs (optional): curated [{"label", "url"}] links to cppreference.com
+    pages relevant to the topic, shown as an optional "Docs" panel in the UI.
 
 Two per tier (easy/medium/hard), one for expert = 7 total, matching the
 7-day week. Add more freely; day generation just needs >=1 per difficulty.
@@ -31,6 +33,10 @@ CODING_PROBLEMS = [
             "    return false;\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::string", "url": "https://en.cppreference.com/w/cpp/string/basic_string"},
+            {"label": "std::string::operator[]", "url": "https://en.cppreference.com/w/cpp/string/basic_string/operator_at"},
+        ],
         "test_case_summary": '"racecar"->true, "hello"->false, ""->true, "a"->true, "ab"->false',
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -64,6 +70,10 @@ CODING_PROBLEMS = [
             "    return {};\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::unordered_map", "url": "https://en.cppreference.com/w/cpp/container/unordered_map"},
+            {"label": "std::vector", "url": "https://en.cppreference.com/w/cpp/container/vector"},
+        ],
         "test_case_summary": "([2,7,11,15], 9), ([3,2,4], 6), ([3,3], 6) - any valid index pair is accepted",
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -101,6 +111,9 @@ CODING_PROBLEMS = [
             "    return false;\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::stack", "url": "https://en.cppreference.com/w/cpp/container/stack"},
+        ],
         "test_case_summary": '"()"->true, "()[]{}"->true, "(]"->false, "([)]"->false, "{[]}"->true',
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -134,6 +147,10 @@ CODING_PROBLEMS = [
             "    return -1;\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::unordered_map", "url": "https://en.cppreference.com/w/cpp/container/unordered_map"},
+            {"label": "std::string", "url": "https://en.cppreference.com/w/cpp/string/basic_string"},
+        ],
         "test_case_summary": '"leetcode"->0, "loveleetcode"->2, "aabb"->-1',
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -168,6 +185,10 @@ CODING_PROBLEMS = [
             "    return 0;\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::vector", "url": "https://en.cppreference.com/w/cpp/container/vector"},
+            {"label": "std::numeric_limits", "url": "https://en.cppreference.com/w/cpp/types/numeric_limits"},
+        ],
         "test_case_summary": "[-2,1,-3,4,-1,2,1,-5,4]->6, [1]->1, [5,4,-1,7,8]->23, [-1,-2,-3]->-1",
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -206,6 +227,9 @@ CODING_PROBLEMS = [
             "    return 0;\n"
             "}\n"
         ),
+        "docs": [
+            {"label": "std::priority_queue", "url": "https://en.cppreference.com/w/cpp/container/priority_queue"},
+        ],
         "test_case_summary": "([3,2,1,5,6,4], 2)->5, ([3,2,3,1,2,4,5,5,6], 4)->4",
         "harness_template": COMMON_HEADER + (
             "{{USER_CODE}}\n\n"
@@ -255,6 +279,10 @@ CODING_PROBLEMS = [
             "    }\n"
             "};\n"
         ),
+        "docs": [
+            {"label": "std::unordered_map", "url": "https://en.cppreference.com/w/cpp/container/unordered_map"},
+            {"label": "std::list", "url": "https://en.cppreference.com/w/cpp/container/list"},
+        ],
         "test_case_summary": (
             "capacity=2: put(1,1) put(2,2) get(1)->1 put(3,3)[evicts 2] get(2)->-1 "
             "put(4,4)[evicts 1] get(1)->-1 get(3)->3 get(4)->4"

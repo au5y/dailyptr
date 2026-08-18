@@ -50,3 +50,8 @@ SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "cpp-refresher-sandbox:latest")
 SANDBOX_TIMEOUT_SECONDS = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "10"))
 SANDBOX_MEMORY_LIMIT = os.environ.get("SANDBOX_MEMORY_LIMIT", "128m")
 SANDBOX_CPU_LIMIT = os.environ.get("SANDBOX_CPU_LIMIT", "0.5")
+
+# Optional: AI grading of concept-check free responses via the Anthropic API.
+# Unset -> the app falls back to the plain self-graded "Got it / Missed it" flow.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")

@@ -82,6 +82,8 @@ defaults):
 | `SANDBOX_TIMEOUT_SECONDS` | Compile+run wall-clock limit per submission |
 | `SANDBOX_MEMORY_LIMIT` / `SANDBOX_CPU_LIMIT` | Docker resource limits per submission |
 | `FRONTEND_DIR` | Override where static frontend files are served from |
+| `ANTHROPIC_API_KEY` | Optional. If set, enables AI-grading of concept-check free responses via the Anthropic API. Unset -> falls back to the plain self-graded "Got it / Missed it" flow |
+| `ANTHROPIC_MODEL` | Model used for AI grading, defaults to a cheap Haiku model |
 
 ## Adding content
 

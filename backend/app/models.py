@@ -32,6 +32,9 @@ class CodingProblem(Base):
     # own test cases and prints "RESULT:<passed>/<total>" as the last line.
     harness_template: Mapped[str] = mapped_column(Text)
     test_case_summary: Mapped[str] = mapped_column(Text, default="")  # human-readable, shown to user
+    # Curated cppreference.com (etc.) links relevant to this problem's topic,
+    # e.g. [{"label": "std::string", "url": "https://en.cppreference.com/w/cpp/string/basic_string"}].
+    docs: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class ConceptCheck(Base):
