@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C++ Daily Skill Refresher</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">C++ Daily Skill Refresher</div>
+    <div class="stats" id="stats-bar">
+      <span class="stat"><strong id="stat-points">0</strong> pts</span>
+      <span class="stat">🔥 <strong id="stat-streak">0</strong> day streak</span>
+      <span class="stat" id="stat-missed-wrap" hidden><strong id="stat-missed">0</strong> missed</span>
+      <button id="history-toggle" class="btn btn-ghost">History</button>
+    </div>
+  </header>
+
+  <main id="app">
+
+    <section id="challenge-view">
+      <div class="challenge-header">
+        <div>
+          <h1 id="challenge-date">Loading…</h1>
+          <span id="challenge-badge" class="badge">-</span>
+          <span id="challenge-late" class="badge badge-late" hidden>catching up</span>
+        </div>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="quiz">1. Quiz <span id="tab-quiz-check"></span></button>
+        <button class="tab" data-tab="code">2. Code <span id="tab-code-check"></span></button>
+        <button class="tab" data-tab="concept">3. Concept Check <span id="tab-concept-check"></span></button>
+      </nav>
+
+      <section class="panel" id="panel-quiz">
+        <div id="quiz-questions"></div>
+        <button id="quiz-submit" class="btn btn-primary">Submit Quiz</button>
+        <div id="quiz-result" class="result-box" hidden></div>
+      </section>
+
+      <section class="panel" id="panel-code" hidden>
+        <h2 id="code-title"></h2>
+        <p id="code-description" class="prose"></p>
+        <p class="hint" id="code-tests"></p>
+        <textarea id="code-editor" spellcheck="false"></textarea>
+        <button id="code-submit" class="btn btn-primary">Compile &amp; Run</button>
+        <pre id="code-result" class="result-box" hidden></pre>
+      </section>
+
+      <section class="panel" id="panel-concept" hidden>
+        <p id="concept-prompt" class="prose"></p>
+        <textarea id="concept-notes" placeholder="Jot your own answer here first (not submitted - just for you to compare against the model answer)."></textarea>
+        <button id="concept-reveal" class="btn btn-secondary">Reveal Model Answer</button>
+        <div id="concept-answer" class="result-box" hidden></div>
+        <div id="concept-grade" hidden>
+          <p>Be honest - did you get the core idea?</p>
+          <button id="concept-got-it" class="btn btn-primary">✅ Got it</button>
+          <button id="concept-missed" class="btn btn-ghost">❌ Missed it</button>
+        </div>
+        <div id="concept-result" class="result-box" hidden></div>
+      </section>
+    </section>
+
+    <section id="history-view" hidden>
+      <h1>History</h1>
+      <p class="hint">Click any day to open it - missed days stay available so you can go back and catch up.</p>
+      <div id="history-list"></div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

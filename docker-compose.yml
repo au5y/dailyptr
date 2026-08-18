@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  # Builds the isolated image used to compile/run each C++ submission.
+  # It is never "run" as a long-lived service - the web container launches
+  # short-lived containers from this image on demand.
+  sandbox-image:
+    build:
+      context: ./sandbox-runner
+    image: cpp-refresher-sandbox:latest
+    # This service only exists so `docker compose build` produces the image.
+    command: ["true"]
+
+  web:
+    build:
+      context: ./backend
+    image: cpp-refresher-web:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - SANDBOX_MODE=docker
+      - SANDBOX_IMAGE=cpp-refresher-sandbox:latest
+      - DATABASE_URL=sqlite:////data/app.db
+    volumes:
+      - ./data:/data
+      - ./frontend:/app/frontend:ro
+      # Docker-outside-of-Docker: lets the web container ask the HOST docker
+      # daemon to spin up sandbox containers as siblings, not nested inside it.
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - sandbox-image
+    restart: unless-stopped
