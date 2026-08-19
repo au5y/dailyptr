@@ -61,7 +61,7 @@ SANDBOX_MODE = os.environ.get("SANDBOX_MODE", "subprocess")
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "dailyptr-sandbox:latest")
 SANDBOX_TIMEOUT_SECONDS = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "10"))
 SANDBOX_MEMORY_LIMIT = os.environ.get("SANDBOX_MEMORY_LIMIT", "128m")
-SANDBOX_CPU_LIMIT = os.environ.get("SANDBOX_CPU_LIMIT", "0.5")
+SANDBOX_CPU_LIMIT = os.environ.get("SANDBOX_CPU_LIMIT", "1.0")
 
 # Docker-outside-of-Docker path translation (only matters for SANDBOX_MODE=docker):
 # this backend process's temp files live at SANDBOX_TMP_DIR *inside its own
