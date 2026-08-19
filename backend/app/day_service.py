@@ -39,10 +39,7 @@ def get_or_create_day(db: Session, user: models.User, target_date: date_type, tr
             detail=f"Content bank is missing '{difficulty}' entries for track '{track}' - run seeding first.",
         )
 
-    n_quiz = min(config.QUESTIONS_PER_DAY, len(quiz_pool))
-    quiz_ids = [q.id for q in rng.sample(quiz_pool, n_quiz)]
-    coding_problem = rng.choice(coding_pool)
-    concept_check = rng.choice(concept_pool)
+    quiz_ids, coding_problem_id, concept_check_id = _pick_day_content(rng, quiz_pool, coding_pool, concept_pool)
 
     day = models.Day(
         user_id=user.id,
@@ -51,9 +48,9 @@ def get_or_create_day(db: Session, user: models.User, target_date: date_type, tr
         weekday=weekday,
         difficulty=difficulty,
         quiz_question_ids=quiz_ids,
-        coding_problem_id=coding_problem.id,
-        concept_check_id=concept_check.id,
-        quiz_total=n_quiz,
+        coding_problem_id=coding_problem_id,
+        concept_check_id=concept_check_id,
+        quiz_total=len(quiz_ids),
     )
     db.add(day)
     db.commit()
@@ -89,12 +86,73 @@ def start_date_for(db: Session, user: models.User, track: str) -> date_type:
     return subscription.subscribed_at if subscription else user.created_at.date()
 
 
+def _pick_day_content(rng: random.Random, quiz_pool: list, coding_pool: list, concept_pool: list) -> tuple[list[int], int, int]:
+    n_quiz = min(config.QUESTIONS_PER_DAY, len(quiz_pool))
+    quiz_ids = [q.id for q in rng.sample(quiz_pool, n_quiz)]
+    return quiz_ids, rng.choice(coding_pool).id, rng.choice(concept_pool).id
+
+
 def backfill_history(db: Session, user: models.User, track: str, days: int = 30) -> None:
     """Pre-create Day rows for the last `days` days (today inclusive) for `track`,
     so a new user's calendar/history shows a month of already-open days instead
-    of only creating them lazily on first click. get_or_create_day is idempotent
-    (checks for an existing row before creating), so this is cheap and safe to
-    call once right after signup."""
+    of only creating them lazily on first click. Idempotent (skips dates that
+    already have a row) and safe to call repeatedly, e.g. once right after
+    signup and again whenever a track is subscribed to.
+
+    Content pools only vary by (difficulty, track) - just 4 difficulties - so
+    this fetches each pool once and reuses it across every date that shares a
+    difficulty, and does one INSERT/commit for the whole batch, rather than
+    the naive one-query-and-one-commit-per-day-per-pool approach (which was
+    ~4 queries and a commit for every single day, even though most of that
+    work is identical across days)."""
+    if track not in config.TRACKS:
+        raise HTTPException(status_code=404, detail=f"Unknown track '{track}'.")
+
     today = date_type.today()
-    for offset in range(days):
-        get_or_create_day(db, user, today - timedelta(days=offset), track)
+    target_dates = [today - timedelta(days=offset) for offset in range(days)]
+
+    existing_dates = {
+        d for (d,) in db.query(models.Day.date).filter(
+            models.Day.user_id == user.id, models.Day.track == track, models.Day.date.in_(target_dates)
+        ).all()
+    }
+    missing_dates = [d for d in target_dates if d not in existing_dates]
+    if not missing_dates:
+        return
+
+    pools_by_difficulty: dict[str, tuple[list, list, list]] = {}
+    track_salt = sum(ord(c) for c in track)
+    new_days = []
+    for target_date in missing_dates:
+        weekday = target_date.weekday()
+        difficulty = config.WEEKDAY_DIFFICULTY[weekday].value
+
+        if difficulty not in pools_by_difficulty:
+            quiz_pool = db.query(models.QuizQuestion).filter(models.QuizQuestion.difficulty == difficulty, models.QuizQuestion.track == track).all()
+            coding_pool = db.query(models.CodingProblem).filter(models.CodingProblem.difficulty == difficulty, models.CodingProblem.track == track).all()
+            concept_pool = db.query(models.ConceptCheck).filter(models.ConceptCheck.difficulty == difficulty, models.ConceptCheck.track == track).all()
+            if not quiz_pool or not coding_pool or not concept_pool:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Content bank is missing '{difficulty}' entries for track '{track}' - run seeding first.",
+                )
+            pools_by_difficulty[difficulty] = (quiz_pool, coding_pool, concept_pool)
+        quiz_pool, coding_pool, concept_pool = pools_by_difficulty[difficulty]
+
+        rng = random.Random(target_date.toordinal() * 1000 + track_salt)  # same seeding as get_or_create_day
+        quiz_ids, coding_problem_id, concept_check_id = _pick_day_content(rng, quiz_pool, coding_pool, concept_pool)
+
+        new_days.append(models.Day(
+            user_id=user.id,
+            date=target_date,
+            track=track,
+            weekday=weekday,
+            difficulty=difficulty,
+            quiz_question_ids=quiz_ids,
+            coding_problem_id=coding_problem_id,
+            concept_check_id=concept_check_id,
+            quiz_total=len(quiz_ids),
+        ))
+
+    db.add_all(new_days)
+    db.commit()
