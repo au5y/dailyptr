@@ -35,6 +35,10 @@ services:
       # app/config.py for what redirect URIs need to be registered on it.
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      # Only needed behind a reverse proxy that doesn't forward scheme/host
+      # (uvicorn here isn't run with --proxy-headers, so it can't infer
+      # https on its own) - see app/config.py.
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
       # Optional: enables AI grading of concept-check answers. Unset on the
       # host -> the app falls back to the plain self-graded flow.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
