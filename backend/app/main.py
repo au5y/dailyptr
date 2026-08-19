@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .database import init_db, SessionLocal
+from .day_service import backfill_history
 from .seed import seed_content
 from .routers import challenges, quiz, coding, concept
 
@@ -28,12 +29,15 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_content(db)
+        # Give System Design a month of pre-populated history immediately,
+        # rather than only creating days lazily as the calendar is clicked into.
+        backfill_history(db, "system_design", days=30)
     finally:
         db.close()
     yield
 
 
-app = FastAPI(title="C++ Daily Skill Refresher", lifespan=lifespan)
+app = FastAPI(title="dailyptr", lifespan=lifespan)
 
 app.include_router(challenges.router)
 app.include_router(quiz.router)

@@ -191,12 +191,14 @@ a:hover { color: #3fc3b5; }
 .choice.locked { cursor: default; }
 
 /* ---------- buttons ---------- */
-.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0; }
+.btn-row { display: flex; flex-direction: column; gap: 10px; margin: 4px 0; }
 .btn-chunky {
   border: none; border-radius: 16px; padding: 13px 26px; font-weight: 800; font-size: 0.92rem;
   letter-spacing: 0.01em; cursor: pointer; transition: transform 0.05s ease, box-shadow 0.05s ease;
-  display: inline-flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
 }
+/* compact icon/nav controls stay their natural size, not full-width */
+#history-toggle, .cal-nav-btn { width: auto; display: inline-flex; }
 .btn-chunky:active { transform: translateY(4px); }
 .btn-chunky:disabled { cursor: not-allowed; opacity: 0.7; }
 .btn-teal { background: var(--teal); color: var(--bg); box-shadow: 0 5px 0 var(--teal-shadow); }
@@ -223,6 +225,25 @@ textarea {
   resize: vertical; margin: 6px 0 16px; box-shadow: inset 0 0 0 1px var(--border);
 }
 #concept-notes { min-height: 100px; font-family: inherit; color: var(--text); font-size: 0.92rem; }
+
+/* ---------- code editor (CodeMirror) ---------- */
+.CodeMirror {
+  height: auto; min-height: 190px; background: #00161d; color: #dbe4ff;
+  border-radius: 18px; font-family: var(--font-mono); font-size: 0.86rem;
+  padding: 8px 0; margin: 6px 0 16px; box-shadow: inset 0 0 0 1px var(--border);
+}
+.CodeMirror-gutters { background: #00161d; border-right: 1px solid var(--border); }
+.CodeMirror-linenumber { color: var(--text-faint); }
+.CodeMirror-cursor { border-left: 1px solid #dbe4ff; }
+.cm-s-dailyptr.CodeMirror { background: #00161d; color: #dbe4ff; }
+.cm-s-dailyptr .cm-keyword { color: var(--violet); }
+.cm-s-dailyptr .cm-def, .cm-s-dailyptr .cm-variable-2 { color: var(--teal); }
+.cm-s-dailyptr .cm-string { color: var(--green); }
+.cm-s-dailyptr .cm-number { color: var(--yellow); }
+.cm-s-dailyptr .cm-comment { color: var(--text-faint); font-style: italic; }
+.cm-s-dailyptr .cm-atom, .cm-s-dailyptr .cm-tag { color: var(--orange); }
+.cm-s-dailyptr .cm-attribute { color: var(--teal); }
+.cm-s-dailyptr .cm-matchingbracket { color: var(--text); background: rgba(255, 255, 255, 0.15); }
 
 .code-submit-btn { width: 100%; justify-content: center; }
 
@@ -254,10 +275,11 @@ textarea {
 .blocks-empty-hint { color: var(--text-faint); font-size: 0.82rem; margin: 6px 4px; }
 .blocks-bank { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .block-chip {
-  font-family: var(--font-mono); font-size: 0.82rem; white-space: pre; color: var(--text);
+  font-family: var(--font-mono); font-size: 0.82rem; white-space: pre-wrap; word-break: break-word;
+  color: var(--text);
   background: #33474d; border: none; border-radius: 10px; padding: 9px 12px; cursor: pointer;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3); transition: transform 0.05s ease;
-  text-align: left; max-width: 100%; overflow-x: auto;
+  text-align: left; max-width: 100%;
 }
 .block-chip:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3); }
 .block-chip.in-assembly { background: var(--violet); box-shadow: 0 3px 0 var(--violet-shadow); }
@@ -279,7 +301,7 @@ textarea {
   margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: rgba(0, 0, 0, 0.18);
   font-size: 0.9rem; white-space: pre-wrap; color: var(--text-dim); font-family: inherit;
 }
-#code-reference { font-family: var(--font-mono); font-size: 0.82rem; overflow-x: auto; }
+#code-reference { font-family: var(--font-mono); font-size: 0.82rem; white-space: pre-wrap; word-break: break-word; }
 
 /* ---------- history ---------- */
 .history-head { text-align: center; margin: 24px 0 28px; }
@@ -340,6 +362,7 @@ textarea {
 
   .blob-panel { padding: 18px 16px; border-radius: 24px 24px 24px 6px; }
   textarea { min-height: 150px; font-size: 0.8rem; padding: 12px; }
+  .CodeMirror { min-height: 150px; font-size: 0.8rem; }
 
   .choice { padding: 11px 14px; font-size: 0.86rem; }
 

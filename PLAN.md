@@ -1,4 +1,4 @@
-# Roadmap: C++ Daily Skill Refresher
+# Roadmap: dailyptr
 
 Source requirement (from the project description): a daily learning app that
 verifies and tests C++, software programming, OOD, and design pattern
@@ -82,9 +82,44 @@ screenshots) plus the existing pytest suite.
 
 ## Phase 2 - Make it enjoyable to use daily (next up)
 
-- **Code editor upgrade**: swap the plain `<textarea>` for CodeMirror or
-  Monaco (via CDN) for syntax highlighting and bracket matching, for the
-  non-block-mode path.
+- **System Design track (done)**: a third track, `system_design`
+  (`backend/app/content/system_design_bank.py`), following the same
+  self-checked pattern as `html_css` (`uses_sandbox: False` - submit a
+  free-text design attempt, then compare against a revealed reference
+  solution). Seeded with 29 entries per content type (8 easy/8 medium/8
+  hard/5 expert = 87 total) - deliberately deeper than the other two tracks
+  so a month of daily use has low repetition; expert-tier practice problems
+  are classic "design X" case studies (URL shortener, rate limiter, chat
+  system, news feed, distributed cache). The code editor falls back to
+  plain-text mode for this track (no C++/HTML highlighting misfiring on
+  prose) via a small mode lookup table in `app.js`. On every boot, the app
+  also backfills the past 30 days of `system_design` `Day` rows
+  (`day_service.backfill_history`, called from `main.py`'s lifespan) so its
+  calendar/history shows a month of already-open days immediately instead
+  of only creating them lazily on click - reuses the existing idempotent
+  `get_or_create_day`, no new selection logic needed.
+- **Rebrand to "dailyptr"**: renamed the app-facing title/brand text
+  (`frontend/index.html`, FastAPI `title=` in `main.py`), README/PLAN
+  headings, and the Docker image names (`cpp-refresher-*` ->
+  `dailyptr-*` in `docker-compose.yml`, `config.py`'s `SANDBOX_IMAGE`
+  default, and the sandbox Dockerfile comment) to reflect that the app is
+  now multi-track, not C++-only.
+- **Grow content toward a full year (not started)**: the user asked for
+  this to be scheduled as follow-up work, not built now. Goal: extend all
+  three tracks' pools toward roughly 40-45 entries per difficulty tier per
+  content type (~4-5x System Design's current depth, which is itself the
+  deepest track today), so even a full year of daily use stays low-repeat.
+  Consider extending the `backfill_history` approach to the other two
+  tracks as well while doing this pass.
+- **Code editor upgrade (done)**: swapped the plain `<textarea>` for
+  CodeMirror 5 (via CDN, `CodeMirror.fromTextArea`) for syntax highlighting
+  and bracket matching on the non-block-mode path; block mode is untouched.
+  Mode switches between `text/x-c++src` and `htmlmixed` based on the active
+  track. A custom theme (`.cm-s-dailyptr` in style.css) matches the existing
+  dark panel look instead of pulling a premade CDN theme. Needed a
+  `cmEditor.refresh()` both when un-hiding from block mode and when
+  switching into the Code tab the first time - CodeMirror mis-measures
+  itself if initialized/updated while its container is `display:none`.
 - **Content volume**: still true - `cpp_core`'s pool grew this session
   (quiz 21->33, coding 7->11, concept 6->10) but a real week-over-week user
   will still see repeats within a couple months. `html_css` is much thinner

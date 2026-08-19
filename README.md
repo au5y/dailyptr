@@ -1,4 +1,4 @@
-# C++ Daily Skill Refresher
+# dailyptr
 
 A self-hosted daily practice app: a short multiple-choice quiz, a small
 coding problem that compiles and runs your real C++ in a sandbox, and a

@@ -48,6 +48,7 @@ DEFAULT_TRACK = "cpp_core"
 TRACKS = {
     "cpp_core": {"name": "C++ Core", "uses_sandbox": True},
     "html_css": {"name": "Learning HTML/CSS", "uses_sandbox": False},
+    "system_design": {"name": "System Design", "uses_sandbox": False},
 }
 
 DATABASE_URL = os.environ.get(
@@ -57,7 +58,7 @@ DATABASE_URL = os.environ.get(
 # "docker"  -> spins up a real, network-disabled container per submission (production / self-hosted)
 # "subprocess" -> compiles/runs with a locked-down local subprocess (local dev, no Docker daemon needed)
 SANDBOX_MODE = os.environ.get("SANDBOX_MODE", "subprocess")
-SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "cpp-refresher-sandbox:latest")
+SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "dailyptr-sandbox:latest")
 SANDBOX_TIMEOUT_SECONDS = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "10"))
 SANDBOX_MEMORY_LIMIT = os.environ.get("SANDBOX_MEMORY_LIMIT", "128m")
 SANDBOX_CPU_LIMIT = os.environ.get("SANDBOX_CPU_LIMIT", "0.5")

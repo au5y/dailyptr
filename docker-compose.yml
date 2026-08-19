@@ -7,19 +7,19 @@ services:
   sandbox-image:
     build:
       context: ./sandbox-runner
-    image: cpp-refresher-sandbox:latest
+    image: dailyptr-sandbox:latest
     # This service only exists so `docker compose build` produces the image.
     command: ["true"]
 
   web:
     build:
       context: ./backend
-    image: cpp-refresher-web:latest
+    image: dailyptr-web:latest
     ports:
       - "8000:8000"
     environment:
       - SANDBOX_MODE=docker
-      - SANDBOX_IMAGE=cpp-refresher-sandbox:latest
+      - SANDBOX_IMAGE=dailyptr-sandbox:latest
       - DATABASE_URL=sqlite:////data/app.db
       # Optional: enables AI grading of concept-check answers. Unset on the
       # host -> the app falls back to the plain self-graded flow.

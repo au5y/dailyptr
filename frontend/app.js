@@ -8,6 +8,19 @@ let currentTab = "quiz";
 let historyByDate = {}; // date string -> DayOut, for the current track (refreshed each time History opens)
 let calYear, calMonth; // calendar's currently displayed month (0-based month)
 
+// ---------- code editor (CodeMirror, non-block-mode path) ----------
+let cmEditor = null;
+function initCodeEditor() {
+  cmEditor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+    mode: "text/x-c++src",
+    theme: "dailyptr",
+    lineNumbers: true,
+    matchBrackets: true,
+    indentUnit: 4,
+    viewportMargin: Infinity,
+  });
+}
+
 // ---------- block mode (Duolingo-style "assemble the code") ----------
 let blockModeEnabled = localStorage.getItem("cdr-block-mode") === "1";
 let blockBank = []; // shuffled reference-solution lines not yet placed
@@ -239,8 +252,9 @@ function renderCode(coding, day) {
     docsLinks.appendChild(a);
   });
 
-  const editor = document.getElementById("code-editor");
-  editor.value = coding.starter_code;
+  const cmModes = { html_css: "htmlmixed", system_design: "text/plain" };
+  cmEditor.setOption("mode", cmModes[currentTrack] || "text/x-c++src");
+  cmEditor.setValue(coding.starter_code);
   const resultBox = document.getElementById("code-result");
   resultBox.hidden = true;
   resultBox.className = "panel-result";
@@ -263,8 +277,9 @@ function renderCode(coding, day) {
 }
 
 function applyBlockModeVisibility() {
-  document.getElementById("code-editor").hidden = blockModeEnabled;
+  cmEditor.getWrapperElement().hidden = blockModeEnabled;
   document.getElementById("code-blocks").hidden = !blockModeEnabled;
+  if (!blockModeEnabled) cmEditor.refresh();
 }
 
 async function loadBlocksForCurrentDay() {
@@ -340,7 +355,7 @@ document.getElementById("code-submit").addEventListener("click", async () => {
   const btn = document.getElementById("code-submit");
   const resultBox = document.getElementById("code-result");
   const referenceBox = document.getElementById("code-reference");
-  const code = blockModeEnabled ? blockAssembly.join("\n") : document.getElementById("code-editor").value;
+  const code = blockModeEnabled ? blockAssembly.join("\n") : cmEditor.getValue();
   const usesSandbox = currentTrackMeta().uses_sandbox;
   if (blockModeEnabled && !code.trim()) {
     alert("Assemble the pieces into your solution first.");
@@ -483,6 +498,7 @@ function showTab(name) {
   document.getElementById("panel-quiz").hidden = name !== "quiz";
   document.getElementById("panel-code").hidden = name !== "code";
   document.getElementById("panel-concept").hidden = name !== "concept";
+  if (name === "code" && !blockModeEnabled) cmEditor.refresh();
   if (current) renderNodes(current.day);
   setMascot(MASCOT_MSG[name] || "");
 }
@@ -618,6 +634,7 @@ document.getElementById("history-toggle").addEventListener("click", async () => 
 // ---------- boot ----------
 (async function init() {
   try {
+    initCodeEditor();
     appConfig = await getJSON(`${API}/config`);
     tracks = await getJSON(`${API}/tracks`);
     if (!tracks.some((t) => t.id === currentTrack)) currentTrack = tracks[0]?.id || "cpp_core";

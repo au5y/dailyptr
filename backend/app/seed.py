@@ -12,14 +12,24 @@ from .content.coding_bank import CODING_PROBLEMS
 from .content.concept_bank import CONCEPT_CHECKS
 from .content.cpp_backend_bank import CPP_BACKEND_QUIZ, CPP_BACKEND_CODING, CPP_BACKEND_CONCEPT
 from .content.html_css_bank import HTML_CSS_QUIZ, HTML_CSS_PRACTICE, HTML_CSS_CONCEPT
+from .content.system_design_bank import SYSTEM_DESIGN_QUIZ, SYSTEM_DESIGN_PRACTICE, SYSTEM_DESIGN_CONCEPT
 
 # (items, default track) - items from bank files don't carry an explicit
 # "track" key, so it's defaulted here per source list. The former standalone
 # "C++ Backend" track's content now bundles straight into cpp_core's pool
 # (same track, more variety) rather than living behind its own switcher tab.
-QUIZ_SOURCES = [(QUIZ_QUESTIONS, "cpp_core"), (CPP_BACKEND_QUIZ, "cpp_core"), (HTML_CSS_QUIZ, "html_css")]
-CODING_SOURCES = [(CODING_PROBLEMS, "cpp_core"), (CPP_BACKEND_CODING, "cpp_core"), (HTML_CSS_PRACTICE, "html_css")]
-CONCEPT_SOURCES = [(CONCEPT_CHECKS, "cpp_core"), (CPP_BACKEND_CONCEPT, "cpp_core"), (HTML_CSS_CONCEPT, "html_css")]
+QUIZ_SOURCES = [
+    (QUIZ_QUESTIONS, "cpp_core"), (CPP_BACKEND_QUIZ, "cpp_core"), (HTML_CSS_QUIZ, "html_css"),
+    (SYSTEM_DESIGN_QUIZ, "system_design"),
+]
+CODING_SOURCES = [
+    (CODING_PROBLEMS, "cpp_core"), (CPP_BACKEND_CODING, "cpp_core"), (HTML_CSS_PRACTICE, "html_css"),
+    (SYSTEM_DESIGN_PRACTICE, "system_design"),
+]
+CONCEPT_SOURCES = [
+    (CONCEPT_CHECKS, "cpp_core"), (CPP_BACKEND_CONCEPT, "cpp_core"), (HTML_CSS_CONCEPT, "html_css"),
+    (SYSTEM_DESIGN_CONCEPT, "system_design"),
+]
 
 
 def seed_content(db: Session) -> None:

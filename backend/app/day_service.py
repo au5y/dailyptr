@@ -4,7 +4,7 @@ on first access). Selection is seeded by the date itself so it's stable if
 you reload the page, but still varies day to day across the content pool.
 """
 import random
-from datetime import date as date_type
+from datetime import date as date_type, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -56,3 +56,14 @@ def get_or_create_day(db: Session, target_date: date_type, track: str = config.D
     db.commit()
     db.refresh(day)
     return day
+
+
+def backfill_history(db: Session, track: str, days: int = 30) -> None:
+    """Pre-create Day rows for the last `days` days (today inclusive) for `track`,
+    so its calendar/history shows a month of already-open days instead of only
+    creating them lazily on first click. get_or_create_day is idempotent (checks
+    for an existing row before creating), so this is cheap and safe to call on
+    every startup."""
+    today = date_type.today()
+    for offset in range(days):
+        get_or_create_day(db, today - timedelta(days=offset), track)

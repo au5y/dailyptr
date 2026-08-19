@@ -9,4 +9,4 @@ WORKDIR /sandbox
 USER sandboxuser
 
 # No CMD/ENTRYPOINT: the web service supplies the compile+run command
-# for each submission via `docker run ... cpp-refresher-sandbox:latest <cmd>`.
+# for each submission via `docker run ... dailyptr-sandbox:latest <cmd>`.
