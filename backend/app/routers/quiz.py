@@ -2,15 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, scoring
+from ..auth import get_current_user
 from ..database import get_db
 
 router = APIRouter(prefix="/api/quiz", tags=["quiz"])
 
 
 @router.post("/{day_id}/submit", response_model=schemas.QuizSubmitOut)
-def submit_quiz(day_id: int, body: schemas.QuizSubmitIn, db: Session = Depends(get_db)):
+def submit_quiz(day_id: int, body: schemas.QuizSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     day = db.get(models.Day, day_id)
-    if not day:
+    if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
     if day.quiz_completed:
         raise HTTPException(status_code=400, detail="Quiz already submitted for this day")

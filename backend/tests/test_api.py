@@ -1,7 +1,11 @@
+import uuid
 from datetime import date, timedelta
 
-from app import models
+from fastapi.testclient import TestClient
+
+from app import auth, models
 from app.database import SessionLocal
+from app.main import app
 
 from .solutions import SOLUTIONS_BY_TITLE
 
@@ -100,3 +104,108 @@ def test_bad_coding_submission_does_not_complete_the_day(client):
 
     refreshed = client.get(f"/api/day/{d.isoformat()}").json()
     assert refreshed["day"]["coding_completed"] is False
+
+
+def _logged_in_client() -> TestClient:
+    c = TestClient(app)
+    db = SessionLocal()
+    try:
+        unique = uuid.uuid4().hex[:8]
+        user = models.User(google_sub=f"test-sub-{unique}", email=f"test-{unique}@example.com", name=f"Test {unique}")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    finally:
+        db.close()
+    c.cookies.set(auth.COOKIE_NAME, auth.make_session_cookie(user.id))
+    return c
+
+
+def test_unauthenticated_api_request_is_rejected():
+    c = TestClient(app)
+    resp = c.get("/api/today")
+    assert resp.status_code == 401
+
+
+def test_find_or_create_google_user_is_idempotent_per_sub():
+    db = SessionLocal()
+    try:
+        sub = f"test-sub-{uuid.uuid4().hex[:8]}"
+        first, first_created = auth.find_or_create_google_user(db, sub, "a@example.com", "A")
+        second, second_created = auth.find_or_create_google_user(db, sub, "a@example.com", "A")
+        assert first.id == second.id
+        assert first_created is True
+        assert second_created is False
+    finally:
+        db.close()
+
+
+def test_two_users_get_independent_days_for_same_date_and_track():
+    d = date(2024, 3, 4)  # untouched by other tests
+    alice, bob = _logged_in_client(), _logged_in_client()
+
+    alice_day = alice.get(f"/api/day/{d.isoformat()}").json()["day"]
+    bob_day = bob.get(f"/api/day/{d.isoformat()}").json()["day"]
+
+    assert alice_day["id"] != bob_day["id"]
+
+    answers = _quiz_answers_for(alice_day["id"])
+    alice.post(f"/api/quiz/{alice_day['id']}/submit", json={"answers": answers})
+
+    bob_day_after = bob.get(f"/api/day/{d.isoformat()}").json()["day"]
+    assert bob_day_after["quiz_completed"] is False
+
+
+def test_new_user_is_not_onboarded_until_onboarding_completes(client):
+    assert client.get("/api/me").json()["onboarded"] is False
+    tracks_before = {t["id"]: t["subscribed"] for t in client.get("/api/tracks").json()}
+    assert not any(tracks_before.values())
+
+    resp = client.post("/api/onboarding", json={"tracks": ["cpp_core", "html_css"]})
+    assert resp.status_code == 200
+    subscribed = {t["id"] for t in resp.json() if t["subscribed"]}
+    assert subscribed == {"cpp_core", "html_css"}
+    assert client.get("/api/me").json()["onboarded"] is True
+
+    # backfilled history should now exist for a subscribed track...
+    assert len(client.get("/api/history?track=cpp_core").json()) > 1
+    # ...but not for one the user never picked
+    assert client.get("/api/history?track=system_design").json() == []
+
+
+def test_onboarding_requires_at_least_one_topic(client):
+    resp = client.post("/api/onboarding", json={"tracks": []})
+    assert resp.status_code == 400
+
+
+def test_subscribe_adds_a_track_after_onboarding(client):
+    client.post("/api/onboarding", json={"tracks": ["cpp_core"]})
+    resp = client.post("/api/subscribe", json={"track": "system_design"})
+    assert resp.status_code == 200
+    subscribed = {t["id"] for t in resp.json() if t["subscribed"]}
+    assert subscribed == {"cpp_core", "system_design"}
+
+
+def test_backfilled_days_before_subscription_are_bonus_not_missed(client):
+    """/api/today's backfill (via onboarding) creates ~30 days of history
+    ending today; every one of those except today itself predates "today" as
+    the subscription date, so they should read as bonus, not late/missed."""
+    client.post("/api/onboarding", json={"tracks": ["cpp_core"]})
+    history = client.get("/api/history?track=cpp_core").json()
+    past_days = [d for d in history if d["date"] != date.today().isoformat()]
+    assert past_days  # backfill actually produced older days
+    assert all(d["is_bonus"] and not d["is_late"] for d in past_days)
+
+    stats = client.get("/api/stats?track=cpp_core").json()
+    assert stats["days_missed_open"] == 0
+
+
+def test_cannot_act_on_another_users_day():
+    d = date(2024, 3, 5)  # untouched by other tests
+    alice, bob = _logged_in_client(), _logged_in_client()
+    alice_day_id = alice.get(f"/api/day/{d.isoformat()}").json()["day"]["id"]
+
+    assert bob.post(f"/api/day/{alice_day_id}/reset").status_code == 404
+    assert bob.post(f"/api/quiz/{alice_day_id}/submit", json={"answers": {}}).status_code == 404
+    assert bob.post(f"/api/coding/{alice_day_id}/submit", json={"code": "x"}).status_code == 404
+    assert bob.post(f"/api/concept/{alice_day_id}/submit", json={"self_rating_correct": True}).status_code == 404

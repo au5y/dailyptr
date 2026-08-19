@@ -1,4 +1,4 @@
-const API = "/api";
+const API = "api";
 let current = null; // currently loaded ChallengeOut
 let appConfig = { ai_grading_enabled: false };
 let quizPicks = {}; // qid -> chosen index, client-side only until submit
@@ -64,11 +64,58 @@ function currentTrackMeta() {
   return tracks.find((t) => t.id === currentTrack) || { id: currentTrack, name: currentTrack, uses_sandbox: true };
 }
 
+// ---------- onboarding (first-login topic selection) ----------
+let onboardingPicks = new Set();
+
+function renderOnboardingTopics(allTracks) {
+  onboardingPicks = new Set();
+  const grid = document.getElementById("onboarding-topics");
+  grid.innerHTML = "";
+  allTracks.forEach((t) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "topic-card";
+    btn.innerHTML = `
+      <span class="topic-card-check">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--bg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="topic-card-name">${t.name}</span>
+    `;
+    btn.addEventListener("click", () => {
+      if (onboardingPicks.has(t.id)) onboardingPicks.delete(t.id);
+      else onboardingPicks.add(t.id);
+      btn.classList.toggle("selected", onboardingPicks.has(t.id));
+      document.getElementById("onboarding-start").disabled = onboardingPicks.size === 0;
+    });
+    grid.appendChild(btn);
+  });
+}
+
+document.getElementById("onboarding-start").addEventListener("click", async () => {
+  const btn = document.getElementById("onboarding-start");
+  btn.disabled = true;
+  btn.textContent = "Setting things up…";
+  try {
+    tracks = await postJSON(`${API}/onboarding`, { tracks: Array.from(onboardingPicks) });
+    currentTrack = tracks.find((t) => t.subscribed)?.id || tracks[0]?.id;
+    localStorage.setItem("cdr-track", currentTrack);
+    document.getElementById("onboarding-view").hidden = true;
+    document.getElementById("app-view").hidden = false;
+    renderTrackSwitcher();
+    await loadToday();
+  } catch (e) {
+    alert(`Couldn't save your topics: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = "Start";
+  }
+});
+
 // ---------- track switcher ----------
 function renderTrackSwitcher() {
   const nav = document.getElementById("track-switcher");
   nav.innerHTML = "";
-  tracks.forEach((t) => {
+  const subscribed = tracks.filter((t) => t.subscribed);
+  subscribed.forEach((t) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "track-pill" + (t.id === currentTrack ? " active" : "");
@@ -76,6 +123,39 @@ function renderTrackSwitcher() {
     btn.addEventListener("click", () => switchTrack(t.id));
     nav.appendChild(btn);
   });
+
+  const unsubscribed = tracks.filter((t) => !t.subscribed);
+  document.getElementById("add-topic-popover").hidden = true;
+  if (unsubscribed.length === 0) return;
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "track-pill track-pill-add";
+  addBtn.textContent = "+ Add topic";
+  addBtn.addEventListener("click", () => renderAddTopicPopover(unsubscribed));
+  nav.appendChild(addBtn);
+}
+
+function renderAddTopicPopover(unsubscribed) {
+  const pop = document.getElementById("add-topic-popover");
+  if (!pop.hidden) { pop.hidden = true; return; }
+  pop.innerHTML = '<p class="hint">Add a topic to your rotation:</p>';
+  unsubscribed.forEach((t) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "track-pill";
+    btn.textContent = t.name;
+    btn.addEventListener("click", async () => {
+      try {
+        tracks = await postJSON(`${API}/subscribe`, { track: t.id });
+        pop.hidden = true;
+        await switchTrack(t.id);
+      } catch (e) {
+        alert(`Couldn't add topic: ${e.message}`);
+      }
+    });
+    pop.appendChild(btn);
+  });
+  pop.hidden = false;
 }
 
 async function switchTrack(trackId) {
@@ -124,6 +204,7 @@ function renderChallenge(challenge) {
     `radial-gradient(circle, ${DIFF_COLORS[day.difficulty] || DIFF_COLORS.medium} 0%, transparent 70%)`;
 
   document.getElementById("challenge-late").hidden = !day.is_late;
+  document.getElementById("challenge-bonus").hidden = !day.is_bonus;
 
   renderNodes(day);
   renderQuiz(quiz, day);
@@ -524,7 +605,7 @@ function renderHistoryList(days) {
   days.forEach((d, i) => {
     const row = document.createElement("div");
     row.className = "history-row" + (i % 2 === 1 ? " align-right" : "");
-    const circleClass = d.fully_completed ? "done" : (d.is_late ? "late" : "");
+    const circleClass = d.fully_completed ? "done" : (d.is_late ? "late" : (d.is_bonus ? "bonus" : ""));
     const icon = d.fully_completed
       ? '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : d.is_late
@@ -579,6 +660,7 @@ function renderCalendar() {
     } else if (entry) {
       if (entry.fully_completed) cell.classList.add("cal-done");
       else if (entry.is_late) cell.classList.add("cal-late");
+      else if (entry.is_bonus) cell.classList.add("cal-bonus");
       else cell.classList.add("cal-open");
     } else {
       cell.classList.add("cal-open");
@@ -636,8 +718,21 @@ document.getElementById("history-toggle").addEventListener("click", async () => 
   try {
     initCodeEditor();
     appConfig = await getJSON(`${API}/config`);
+    const me = await getJSON(`${API}/me`);
+    document.getElementById("me-label").textContent = me.name || me.email;
+    document.getElementById("me-wrap").hidden = false;
     tracks = await getJSON(`${API}/tracks`);
-    if (!tracks.some((t) => t.id === currentTrack)) currentTrack = tracks[0]?.id || "cpp_core";
+
+    if (!me.onboarded) {
+      document.getElementById("app-view").hidden = true;
+      document.getElementById("onboarding-view").hidden = false;
+      renderOnboardingTopics(tracks);
+      return;
+    }
+
+    if (!tracks.some((t) => t.id === currentTrack && t.subscribed)) {
+      currentTrack = tracks.find((t) => t.subscribed)?.id || tracks[0]?.id || "cpp_core";
+    }
     renderTrackSwitcher();
     await loadToday();
   } catch (e) {

@@ -2,15 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import ai_grading, models, schemas, scoring
+from ..auth import get_current_user
 from ..database import get_db
 
 router = APIRouter(prefix="/api/concept", tags=["concept"])
 
 
 @router.post("/{day_id}/ai-grade", response_model=schemas.ConceptGradeOut)
-def ai_grade_concept(day_id: int, body: schemas.ConceptGradeIn, db: Session = Depends(get_db)):
+def ai_grade_concept(day_id: int, body: schemas.ConceptGradeIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     day = db.get(models.Day, day_id)
-    if not day:
+    if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
 
     concept = db.get(models.ConceptCheck, day.concept_check_id)
@@ -31,9 +32,9 @@ def ai_grade_concept(day_id: int, body: schemas.ConceptGradeIn, db: Session = De
 
 
 @router.post("/{day_id}/submit", response_model=schemas.ConceptSubmitOut)
-def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Depends(get_db)):
+def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     day = db.get(models.Day, day_id)
-    if not day:
+    if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
 
     concept = db.get(models.ConceptCheck, day.concept_check_id)

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import config, models, schemas, scoring
+from ..auth import get_current_user
 from ..database import get_db
 from ..sandbox import grade_submission
 from ..sandbox.common import SandboxResult
@@ -12,11 +13,11 @@ router = APIRouter(prefix="/api/coding", tags=["coding"])
 
 
 @router.get("/{day_id}/blocks", response_model=schemas.CodeBlocksOut)
-def get_code_blocks(day_id: int, db: Session = Depends(get_db)):
+def get_code_blocks(day_id: int, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     """Shuffled lines of the reference solution, for the optional block-assembly
     mode - fetched only when the user turns that mode on (see schemas.CodeBlocksOut)."""
     day = db.get(models.Day, day_id)
-    if not day:
+    if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
 
     problem = db.get(models.CodingProblem, day.coding_problem_id)
@@ -31,9 +32,9 @@ def get_code_blocks(day_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{day_id}/submit", response_model=schemas.CodeSubmitOut)
-def submit_code(day_id: int, body: schemas.CodeSubmitIn, db: Session = Depends(get_db)):
+def submit_code(day_id: int, body: schemas.CodeSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     day = db.get(models.Day, day_id)
-    if not day:
+    if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
 
     problem = db.get(models.CodingProblem, day.coding_problem_id)

@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>dailyptr</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="static/style.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css">
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/css/css.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/css/css.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -41,11 +41,26 @@
             <strong id="stat-streak">0</strong>
           </span>
           <span class="stat" id="stat-missed-wrap" hidden><strong id="stat-missed">0</strong>&nbsp;missed</span>
+          <span class="stat" id="me-wrap" hidden><span id="me-label"></span></span>
           <button id="history-toggle" class="btn-chunky btn-ghost">History</button>
+          <form method="post" action="logout" style="display:inline;">
+            <button type="submit" class="btn-chunky btn-ghost">Log out</button>
+          </form>
         </div>
       </header>
 
-      <nav class="track-switcher" id="track-switcher" aria-label="Track"></nav>
+      <section id="onboarding-view" hidden>
+        <div class="onboarding-shell">
+          <h1>What do you want to practice?</h1>
+          <p class="hint">Pick at least one topic to start your daily streak. You can add more later.</p>
+          <div class="topic-grid" id="onboarding-topics"></div>
+          <button id="onboarding-start" class="btn-chunky btn-teal" disabled>Start</button>
+        </div>
+      </section>
+
+      <div id="app-view">
+        <nav class="track-switcher" id="track-switcher" aria-label="Track"></nav>
+        <div class="add-topic-popover" id="add-topic-popover" hidden></div>
 
       <section id="challenge-view">
 
@@ -62,6 +77,7 @@
         <div class="difficulty-row">
           <span id="challenge-badge" class="badge">-</span>
           <span id="challenge-late" class="badge badge-late" hidden>catching up</span>
+          <span id="challenge-bonus" class="badge badge-bonus" hidden>bonus</span>
           <button id="reset-day-btn" class="reset-day-btn" title="Reset today's progress and try again">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>
             Reset day
@@ -180,6 +196,7 @@
           <div class="calendar-legend">
             <span><i class="legend-dot done"></i> done</span>
             <span><i class="legend-dot late"></i> late</span>
+            <span><i class="legend-dot bonus"></i> bonus</span>
             <span><i class="legend-dot open"></i> open</span>
           </div>
         </div>
@@ -187,9 +204,11 @@
         <div id="history-list" hidden></div>
       </section>
 
+      </div>
+
     </main>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script defer src="static/app.js"></script>
 </body>
 </html>

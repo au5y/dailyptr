@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+# Render doesn't give this container access to a host Docker daemon, so
+# SANDBOX_MODE=docker (see app/sandbox/docker_runner.py) isn't usable here.
+# This image is for SANDBOX_MODE=subprocess instead: it installs g++ itself
+# and compiles/runs each submission as a resource-limited subprocess of this
+# same container (see app/sandbox/subprocess_runner.py) - weaker isolation
+# than the per-submission network-disabled containers used in
+# docker-compose/Dockerfile, but workable for a low-traffic personal app on
+# a free-tier host that won't hand out a docker socket.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/app ./app
+COPY frontend ./frontend
+
+ENV PYTHONUNBUFFERED=1
+ENV FRONTEND_DIR=/app/frontend
+ENV SANDBOX_MODE=subprocess
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

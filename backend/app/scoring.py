@@ -25,8 +25,19 @@ def on_time_bonus(difficulty: str) -> float:
     return round(config.ON_TIME_STREAK_BONUS * multiplier(difficulty), 1)
 
 
-def is_late(day: models.Day) -> bool:
-    """True if the day wasn't (yet, or wasn't) completed on its own calendar date."""
+def is_bonus(day: models.Day, start_date: date_type) -> bool:
+    """True for a day that predates the user's subscription to this track -
+    backfilled purely so history/the calendar has content to browse, not
+    something they could have "missed"."""
+    return day.date < start_date
+
+
+def is_late(day: models.Day, start_date: date_type) -> bool:
+    """True if the day wasn't (yet, or wasn't) completed on its own calendar
+    date. Bonus days (see is_bonus) are never late - they're optional extras
+    from before the user's own start date, not something to catch up on."""
+    if is_bonus(day, start_date):
+        return False
     if day.completed_at is None:
         return day.date < date_type.today() and not day.fully_completed
     return day.completed_at.date() > day.date
@@ -44,13 +55,17 @@ def maybe_award_completion_bonus(day: models.Day) -> float:
     return bonus
 
 
-def compute_stats(db: Session, track: str = config.DEFAULT_TRACK) -> dict:
-    days = db.query(models.Day).filter(models.Day.track == track).order_by(models.Day.date).all()
+def compute_stats(db: Session, user: models.User, track: str = config.DEFAULT_TRACK, start_date: date_type | None = None) -> dict:
+    if start_date is None:
+        start_date = user.created_at.date()
+    days = db.query(models.Day).filter(
+        models.Day.user_id == user.id, models.Day.track == track
+    ).order_by(models.Day.date).all()
     completed_dates = {d.date for d in days if d.fully_completed}
     total_points = sum(d.points_earned for d in days)
     days_completed = len(completed_dates)
     today = date_type.today()
-    days_missed_open = sum(1 for d in days if d.date < today and not d.fully_completed)
+    days_missed_open = sum(1 for d in days if d.date >= start_date and d.date < today and not d.fully_completed)
 
     # current streak: walk backward from today (or yesterday if today isn't done
     # yet, so still-in-progress "today" doesn't zero out an active streak)

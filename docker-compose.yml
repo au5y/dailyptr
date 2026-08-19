@@ -15,12 +15,26 @@ services:
     build:
       context: ./backend
     image: dailyptr-web:latest
+    container_name: dailyptr-web
     ports:
       - "8000:8000"
+    networks:
+      - default
+      - arr-net
     environment:
       - SANDBOX_MODE=docker
       - SANDBOX_IMAGE=dailyptr-sandbox:latest
       - DATABASE_URL=sqlite:////data/app.db
+      # Signs per-user login session cookies (app/auth.py) - set a real
+      # random value on the host (e.g. `openssl rand -hex 32`), otherwise
+      # this falls back to an insecure default baked into the image.
+      - SECRET_KEY=${SECRET_KEY:-}
+      # "Sign in with Google" (app/auth.py) - the app has no password auth of
+      # its own, so these are required for login to work at all. From a
+      # Google Cloud Console OAuth Client (type: Web application); see
+      # app/config.py for what redirect URIs need to be registered on it.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       # Optional: enables AI grading of concept-check answers. Unset on the
       # host -> the app falls back to the plain self-graded flow.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -41,3 +55,7 @@ services:
     depends_on:
       - sandbox-image
     restart: unless-stopped
+
+networks:
+  arr-net:
+    external: true

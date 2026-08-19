@@ -81,3 +81,22 @@ SANDBOX_HOST_TMP_DIR = os.environ.get("SANDBOX_HOST_TMP_DIR", "")
 # Unset -> the app falls back to the plain self-graded "Got it / Missed it" flow.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+# Signs per-user session cookies (see app/auth.py). Set a real random value
+# in production (e.g. `openssl rand -hex 32`) - the fallback below is fine
+# for local dev/tests but means sessions won't survive a code change that
+# regenerates it, and anyone with the source can forge cookies.
+SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-only-insecure-secret-key"
+
+# Google OAuth ("Sign in with Google" - see app/auth.py) - the app has no
+# password auth of its own. Get these from a Google Cloud Console OAuth
+# Client (type: Web application); register BOTH your deployed callback URL
+# and http://localhost:8000/auth/google/callback as authorized redirect
+# URIs on the same client (Google allows a plain-http localhost redirect
+# for dev even on a "Web application" client, no separate client needed).
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+# Only needed if the app can't correctly infer its own public URL (e.g.
+# behind a reverse proxy that doesn't forward scheme/host) - otherwise the
+# callback URL is derived from the incoming request.
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "")

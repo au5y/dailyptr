@@ -1,11 +1,12 @@
 # dailyptr
 
-A self-hosted daily practice app: a short multiple-choice quiz, a small
-coding problem that compiles and runs your real C++ in a sandbox, and a
-self-graded concept check. Difficulty ramps from easy on Monday to expert
-on Sunday. Points and a daily streak track your progress, and any day you
-miss stays open - a calendar and list view in History let you jump back and
-catch up later.
+A self-hosted daily practice app, sharable with friends: a short
+multiple-choice quiz, a small coding problem that compiles and runs your
+real C++ in a sandbox, and a self-graded concept check. Difficulty ramps
+from easy on Monday to expert on Sunday. Points and a daily streak track
+your progress, and any day you miss stays open - a calendar and list view
+in History let you jump back and catch up later. Everyone who signs in gets
+their own independent progress.
 
 See [`PLAN.md`](./PLAN.md) for the phased roadmap this scaffold is step one of.
 
@@ -13,11 +14,21 @@ See [`PLAN.md`](./PLAN.md) for the phased roadmap this scaffold is step one of.
 > assistance and comparatively light manual review. Treat it as a personal
 > tool rather than a hardened, audited codebase.
 
+## Accounts
+
+Everyone gets their own progress: sign in with Google, or tap **Play
+offline** on the login page to get a disposable local account with no
+Google identity attached (still saved server-side, just not tied to any
+account - see `backend/app/auth.py`). There's no password auth of any
+kind. See [Configuration](#configuration) for the env vars a real Google
+sign-in needs; without them the Google button won't work but Play offline
+always does.
+
 ## Tracks
 
 The app supports multiple independent daily-challenge tracks, switchable from
 the topbar - each has its own content pool, quiz/code/concept flow, and its
-own streak/points (see `backend/app/config.py: TRACKS`):
+own streak/points, all scoped per-account (see `backend/app/config.py: TRACKS`):
 
 - **C++ Core** (`cpp_core`) - general C++ language, STL, and OOD/design-pattern
   questions, plus backend-service-flavored content (HTTP semantics, caching,
@@ -27,6 +38,9 @@ own streak/points (see `backend/app/config.py: TRACKS`):
   track's "coding" step is self-checked: you submit your attempt and the
   reference solution is revealed to compare against, instead of a pass/fail
   test run (see `uses_sandbox` in `config.TRACKS` and `routers/coding.py`).
+- **System Design** (`system_design`) - same self-checked pattern as
+  `html_css` (submit a free-text design attempt, compare against a revealed
+  reference solution); the deepest content pool of the three tracks.
 
 Each day can be reset from the "Reset day" button next to the difficulty
 badge, if you want to retry the same quiz/code/concept check (it's the same
@@ -113,6 +127,9 @@ defaults):
 | `FRONTEND_DIR` | Override where static frontend files are served from |
 | `ANTHROPIC_API_KEY` | Optional. If set, enables AI-grading of concept-check free responses via the Anthropic API. Unset -> falls back to the plain self-graded "Got it / Missed it" flow |
 | `ANTHROPIC_MODEL` | Model used for AI grading, defaults to a cheap Haiku model |
+| `SECRET_KEY` | Signs login session cookies. Set a real random value (e.g. `openssl rand -hex 32`) for any real deployment - the default is fine for local dev/tests only |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud Console OAuth Client (type: Web application) - required for the "Sign in with Google" button to work. Register both your deployed callback URL and `http://localhost:8000/auth/google/callback` as authorized redirect URIs on it (Google allows plain-http `localhost` for dev even on a Web application client) |
+| `GOOGLE_REDIRECT_URI` | Only needed if the app can't correctly infer its own public callback URL - e.g. mounted under a path prefix (`/dailyptr/`) behind a reverse proxy. Set it to the exact full URL registered in Google Cloud Console |
 
 ## Adding content
 
@@ -134,9 +151,9 @@ bank file(s) wired into `seed.py`.
 
 ## Security note
 
-This is designed to be run by one person, on their own machine or private
-network - there's intentionally no login (see `PLAN.md` for why, and what
-it'd take to add one). The Docker sandbox mode gives real isolation for the
-C++ execution itself (no network, dropped capabilities, resource limits),
-but the app has no authentication layer, so don't expose it to the public
-internet without adding one first.
+Every account's data is isolated (each `Day` row is scoped to the account
+that owns it), and the Docker sandbox mode gives real isolation for the C++
+execution itself (no network, dropped capabilities, resource limits). That
+said, this is still a small self-hosted project built for friends to share,
+not an audited multi-tenant service - treat it accordingly if you expose it
+beyond people you trust.

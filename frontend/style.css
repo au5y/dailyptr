@@ -49,7 +49,14 @@ a:hover { color: #3fc3b5; }
 
 /* ---------- watercolor background ---------- */
 .blob-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-.blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.45; animation: drift 24s ease-in-out infinite; }
+/* will-change promotes each blob to its own GPU layer, so the (expensive)
+   blur is computed once into a texture and each animation frame is just a
+   cheap GPU transform of that texture - without it, the browser re-blurs
+   the affected screen region on the main thread on every frame, forever. */
+.blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.45; animation: drift 24s ease-in-out infinite; will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .blob, .flame-icon, .mascot-flame, .node-circle.current { animation: none; }
+}
 @keyframes drift {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
   50% { transform: translate(18px, -14px) rotate(4deg); }
@@ -88,6 +95,15 @@ a:hover { color: #3fc3b5; }
 .track-pill:hover { color: var(--text); border-color: var(--text-faint); }
 .track-pill:active { transform: scale(0.96); }
 .track-pill.active { background: var(--teal); color: var(--bg); border-color: var(--teal); }
+.track-pill-add { border-style: dashed; }
+
+/* ---------- add-topic popover ---------- */
+.add-topic-popover {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin: 8px 0 0; padding: 10px 12px; border-radius: 14px;
+  background: var(--panel-solid); border: 1px solid var(--border);
+}
+.add-topic-popover .hint { margin: 0; flex-basis: 100%; }
 
 /* ---------- reset day ---------- */
 .reset-day-btn {
@@ -119,6 +135,7 @@ a:hover { color: #3fc3b5; }
 .badge-hard { background: rgba(203, 75, 22, 0.18); color: var(--hard); }
 .badge-expert { background: rgba(220, 50, 47, 0.18); color: var(--expert); }
 .badge-late { margin-left: 8px; background: rgba(220, 50, 47, 0.18); color: var(--red); }
+.badge-bonus { margin-left: 8px; background: rgba(181, 137, 0, 0.18); color: var(--yellow); }
 
 /* ---------- node nav ---------- */
 .node-nav {
@@ -330,12 +347,14 @@ textarea {
 .cal-future { background: transparent; color: var(--text-faint); opacity: 0.4; cursor: not-allowed; }
 .cal-done { background: var(--green); color: var(--bg); }
 .cal-late { background: var(--red); color: var(--bg); }
+.cal-bonus { background: rgba(181, 137, 0, 0.35); }
 .cal-open { background: #52717a; }
 .cal-today { outline: 2px solid var(--text); outline-offset: 2px; }
 .calendar-legend { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; color: var(--text-dim); font-size: 0.78rem; margin-bottom: 8px; }
 .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
 .legend-dot.done { background: var(--green); }
 .legend-dot.late { background: var(--red); }
+.legend-dot.bonus { background: var(--yellow); }
 .legend-dot.open { background: #52717a; }
 
 /* ---------- mobile ---------- */
@@ -388,5 +407,29 @@ textarea {
 }
 .history-circle.done { background: var(--green); }
 .history-circle.late { background: var(--red); }
+.history-circle.bonus { background: rgba(181, 137, 0, 0.6); }
 .history-label { font-size: 0.92rem; font-weight: 700; }
 .history-meta { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ---------- onboarding (first-login topic selection) ---------- */
+.onboarding-shell { max-width: 480px; margin: 40px auto; text-align: center; }
+.onboarding-shell h1 { margin: 0 0 6px; font-family: var(--font-display); font-size: 1.4rem; }
+.onboarding-shell p.hint { margin: 0 0 22px; }
+.topic-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.topic-card {
+  display: flex; align-items: center; gap: 14px; text-align: left; width: 100%;
+  border: 2px solid var(--border); background: var(--panel-solid); color: var(--text);
+  border-radius: 16px; padding: 16px 18px; cursor: pointer; font-family: inherit;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.05s ease;
+}
+.topic-card:hover { border-color: var(--text-faint); }
+.topic-card:active { transform: scale(0.98); }
+.topic-card.selected { border-color: var(--teal); background: rgba(42, 161, 152, 0.15); }
+.topic-card-check {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--text-faint);
+  display: flex; align-items: center; justify-content: center;
+}
+.topic-card.selected .topic-card-check { background: var(--teal); border-color: var(--teal); }
+.topic-card-check svg { display: none; }
+.topic-card.selected .topic-card-check svg { display: block; }
+.topic-card-name { font-weight: 700; font-size: 0.98rem; }

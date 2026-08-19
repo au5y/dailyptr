@@ -46,6 +46,15 @@ class TrackOut(BaseModel):
     id: str
     name: str
     uses_sandbox: bool
+    subscribed: bool = False
+
+
+class OnboardingIn(BaseModel):
+    tracks: list[str]
+
+
+class SubscribeIn(BaseModel):
+    track: str
 
 
 class DayOut(BaseModel):
@@ -67,6 +76,7 @@ class DayOut(BaseModel):
     completed_at: datetime | None
     fully_completed: bool
     is_late: bool = False  # set by the router, not stored directly on the row
+    is_bonus: bool = False  # set by the router - day predates the user's subscription to this track
 
 
 class ChallengeOut(BaseModel):
@@ -136,6 +146,12 @@ class ConceptGradeOut(BaseModel):
 
 class AppConfigOut(BaseModel):
     ai_grading_enabled: bool
+
+
+class MeOut(BaseModel):
+    email: str
+    name: str
+    onboarded: bool
 
 
 class StatsOut(BaseModel):

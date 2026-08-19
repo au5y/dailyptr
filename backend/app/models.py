@@ -6,6 +6,40 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .database import Base
 
 
+class User(Base):
+    """Identity comes entirely from Google (see app/auth.py) - no password of
+    our own to store. google_sub is Google's stable, unique per-account
+    identifier (the ID token's `sub` claim) - the actual lookup key; email is
+    kept for display and is unique because Google itself guarantees that."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    google_sub: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # False right after signup until the topic-selection screen is completed
+    # (see routers/challenges.py:/api/onboarding). Existing accounts from
+    # before this field existed are backfilled to True - see database.py.
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class TrackSubscription(Base):
+    """A user's opt-in to one track, and the date that opt-in happened. That
+    date is the user's "start line" for that track: day_service/scoring use
+    it to tell a genuinely missed day (on/after subscribing) apart from a
+    backfilled "bonus" day from before they ever signed up for the track."""
+
+    __tablename__ = "track_subscriptions"
+    __table_args__ = (UniqueConstraint("user_id", "track", name="uq_track_subscriptions_user_track"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    track: Mapped[str] = mapped_column(String(32), index=True)
+    subscribed_at: Mapped[date_type] = mapped_column(Date, default=date_type.today)
+
+
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
@@ -60,9 +94,10 @@ class Day(Base):
     """One calendar day's worth of challenge content and the user's progress on it."""
 
     __tablename__ = "days"
-    __table_args__ = (UniqueConstraint("date", "track", name="uq_days_date_track"),)
+    __table_args__ = (UniqueConstraint("user_id", "date", "track", name="uq_days_user_date_track"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     date: Mapped[date_type] = mapped_column(Date, index=True)
     track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     weekday: Mapped[int] = mapped_column(Integer)  # 0=Mon .. 6=Sun

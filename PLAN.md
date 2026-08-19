@@ -82,6 +82,42 @@ screenshots) plus the existing pytest suite.
 
 ## Phase 2 - Make it enjoyable to use daily (next up)
 
+- **Accounts (done)**: the app moved from single-user/no-login to real
+  per-account sign-in, so it can be shared with friends instead of just
+  one person. No password auth of any kind:
+  - **"Sign in with Google"** (`backend/app/auth.py`, via `authlib`) - a
+    `User` is keyed on Google's `sub` claim (find-or-create on first
+    login), with a signed session cookie (`itsdangerous`) after that. Needs
+    a Google Cloud Console OAuth Client (`GOOGLE_CLIENT_ID`/`_SECRET` env
+    vars); both the deployed callback URL and
+    `http://localhost:8000/auth/google/callback` need to be registered as
+    authorized redirect URIs on it (Google allows plain-http `localhost`
+    for dev even on a "Web application" client).
+  - **"Play offline"** - a disposable guest account (random token stands in
+    for the Google identity) for anyone who doesn't want to use a Google
+    account. Still saved server-side (not a real offline/PWA mode - the
+    server is still required), just not tied to any external identity.
+  - **Every `Day` row is now scoped per-account**: the unique constraint
+    became `(user_id, date, track)` instead of `(date, track)`, and every
+    router that looked up a `Day` by id (`reset_day`, quiz/coding/concept
+    submit) now also checks `day.user_id == current_user.id` - this closes
+    an IDOR that existed even before accounts were added (any `day_id` was
+    previously actionable by anyone, since there was only ever one user).
+  - **Two real bugs worth remembering** (same spirit as Phase 1's list):
+    since `init_db()` is `Base.metadata.create_all` only (additive, never
+    alters existing tables), changing the `User` schema mid-flight (first
+    username/password, then Google-only) left a stale `users` table on any
+    box that had already run once - showed up as
+    `sqlite3.OperationalError: no such column: users.google_sub` on first
+    real login. No migration framework exists yet, so a schema change to
+    `User`/`Day` currently means wiping the DB file, fine pre-launch but
+    worth fixing before this holds real user data. Separately, the OAuth
+    callback's post-login `RedirectResponse(url=".")` 404'd - relative "."
+    resolves against the *current* path, so from a nested route like
+    `/auth/google/callback` it lands on `/auth/google/` instead of the app
+    root; fixed with a helper that climbs back out based on the current
+    path's depth (`main.py: _relative_to_root`), which also keeps working
+    if the app is deployed under a reverse-proxy path prefix.
 - **System Design track (done)**: a third track, `system_design`
   (`backend/app/content/system_design_bank.py`), following the same
   self-checked pattern as `html_css` (`uses_sandbox: False` - submit a
@@ -146,20 +182,24 @@ screenshots) plus the existing pytest suite.
 
 - **Stats page upgrade**: topic-accuracy breakdown and a points-over-time
   chart (the calendar heatmap part of this already shipped in Phase 1).
-- **Export**: a "download my history as JSON/CSV" button - still the backup
-  story until/unless real accounts exist (Phase 5).
+- **Export**: a "download my history as JSON/CSV" button - the backup
+  story for your own data now that accounts exist.
 - **Weekly recap**: an optional end-of-week summary.
 
 ## Phase 5 - Only if requirements change
 
-- **Multi-user accounts**: not needed for a single-person daily habit tool;
-  would need real auth, per-user `Day`/stats scoping (tracks already prove
-  out a `(date, track)`-keyed model that a `(date, track, user)` model could
-  follow), and probably a leaderboard.
-- **Public exposure / reverse proxy + TLS + auth gate**: still assumes
-  localhost or a private network (Tailscale works fine today - see below).
-  If exposed to the open internet, add a reverse proxy with a password gate
-  or real auth first.
+- **Multi-user accounts (done - see Phase 2)**: shipped once the goal
+  became sharing with friends rather than solo use. A per-account
+  leaderboard/comparison view is a natural follow-up now that the data
+  exists, but not built yet.
+- **Public exposure / reverse proxy + TLS**: the auth gate itself now
+  exists (Google sign-in / guest accounts, Phase 2), but the app still
+  needs to actually sit behind a reverse proxy with real TLS to be exposed
+  beyond localhost/Tailscale - self-hosted, in progress.
+- **A real migration framework**: schema changes currently mean wiping the
+  DB file (see Phase 2's bug list) - fine pre-launch, not once real user
+  data exists. Alembic is the obvious choice given SQLAlchemy is already
+  in use.
 - **Judge0 or another external judge**: only worth it for far more problems
   than hand-writing harnesses can keep up with.
 
@@ -174,9 +214,15 @@ screenshots) plus the existing pytest suite.
   correct but has a real gotcha (see Phase 1's bug list) around bind-mount
   paths not lining up between the two "sides" - now fixed and documented in
   `app/sandbox/docker_runner.py`.
-- **No auth / single user**: matches "just me" daily practice use case.
-  Tested reachable over Tailscale (MagicDNS hostname or `100.x.x.x`) without
-  any code changes, since the container already binds `0.0.0.0:8000`.
+- **Google sign-in + guest accounts, no passwords of our own** (Phase 2):
+  once the goal became sharing with friends rather than solo use, the
+  choice was OAuth (Google) over hand-rolled password auth - no password
+  storage/hashing/reset-flow to get right, at the cost of requiring a
+  Google Cloud OAuth Client to be set up. "Play offline" (a disposable
+  guest account) exists specifically so a Google account isn't a hard
+  requirement to try the app. Reachable over Tailscale (MagicDNS hostname
+  or `100.x.x.x`) without any code changes, since the container already
+  binds `0.0.0.0:8000`.
 - **Tracks over separate apps**: rather than standing up a second
   deployment for HTML/CSS practice, one app now supports multiple content
   pools behind a `(date, track)` key - less infrastructure, shared
@@ -184,8 +230,8 @@ screenshots) plus the existing pytest suite.
   branching in `routers/coding.py` for tracks without a compiler.
 - **Block mode reveals the reference solution's lines up front** (shuffled)
   rather than gating them behind completion - a deliberate tradeoff for a
-  self-hosted, single-user, no-login app where "spoiling" your own
-  challenge isn't a real concern the way it would be in a graded course.
+  self-hosted practice app among friends, not a graded course, where
+  "spoiling" your own challenge isn't a real concern.
 - **Difficulty tiers are 4 buckets (easy/medium/hard/expert) mapped 2
   weekdays each except expert (Sunday only)**, not a continuous 1-7 scale,
   so the content bank doesn't need a separate pool per individual weekday.
