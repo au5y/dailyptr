@@ -1,3 +1,7 @@
+import os
+
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
@@ -6,6 +10,8 @@ from . import config
 connect_args = {"check_same_thread": False} if config.DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(config.DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class Base(DeclarativeBase):
@@ -21,25 +27,17 @@ def get_db():
 
 
 def init_db():
-    # Import models so they're registered on Base's metadata before create_all.
-    from . import models  # noqa: F401
-
-    Base.metadata.create_all(bind=engine)
-    _migrate_add_onboarded_column()
-
-
-def _migrate_add_onboarded_column():
-    """create_all only adds brand-new tables, not columns on tables that
-    already exist - so a pre-existing users table (from before `onboarded`
-    was added) needs a one-time ALTER TABLE. Accounts that already exist at
-    that point already have their tracks set up, so they're backfilled to
-    onboarded=True rather than being sent through topic selection."""
-    if not config.DATABASE_URL.startswith("sqlite"):
-        return
-    with engine.begin() as conn:
-        from sqlalchemy import text
-
-        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
-        if "onboarded" not in cols:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN onboarded BOOLEAN DEFAULT 0")
-            conn.execute(text("UPDATE users SET onboarded = 1"))
+    """Brings the database up to the latest schema by running Alembic's
+    migrations (see alembic/versions/) - replaces the old
+    Base.metadata.create_all() + hand-rolled per-column ALTER TABLE patch,
+    which only ever worked for SQLite and needed a new one-off patch
+    function for every future schema change. `alembic upgrade head` is
+    idempotent (no-ops if already current), so calling this on every app
+    startup - same as before - is still safe and requires no separate
+    manual migration step at deploy time."""
+    alembic_cfg = Config(os.path.join(_BACKEND_DIR, "alembic.ini"))
+    # Overridden with an absolute path so this resolves correctly regardless
+    # of the process's current working directory (alembic.ini's own
+    # script_location = alembic is only a relative path).
+    alembic_cfg.set_main_option("script_location", os.path.join(_BACKEND_DIR, "alembic"))
+    command.upgrade(alembic_cfg, "head")
