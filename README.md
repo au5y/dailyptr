@@ -52,8 +52,8 @@ answer instead of typing it - handy on mobile.
 
 ## How it's built
 
-- **Backend**: FastAPI + SQLAlchemy + SQLite (`backend/`). One process, no
-  external services required besides the sandbox.
+- **Backend**: FastAPI + SQLAlchemy + Postgres (`backend/`), schema managed
+  by Alembic migrations (`backend/alembic/`) run automatically on startup.
 - **Frontend**: plain HTML/CSS/JS, no build step (`frontend/`), served
   directly by the backend.
 - **Sandbox**: each coding submission is compiled and run against a set of
@@ -71,11 +71,15 @@ Requires Docker and Docker Compose.
 
 ```bash
 docker compose build
-docker compose up web
+docker compose up -d
 ```
 
-Then open http://localhost:8000. Data persists in `./data/app.db` on the
-host. This mode runs every code submission inside a throwaway,
+Then open http://localhost:8000. This brings up a `postgres` service
+alongside `web` - data persists in a named Docker volume
+(`dailyptr_pg_data`), not a host path. Set `POSTGRES_PASSWORD` (e.g. via
+`.env` in this directory - see [Configuration](#configuration)) to a real
+random value for anything beyond local dev; it falls back to an insecure
+default otherwise. This mode runs every code submission inside a throwaway,
 network-disabled container built from `sandbox-runner/Dockerfile` - see the
 comments in `docker-compose.yml` for how the backend reaches the host's
 Docker daemon to do this ("Docker-outside-of-Docker").
@@ -118,7 +122,8 @@ defaults):
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | SQLAlchemy URL, defaults to a local SQLite file |
+| `DATABASE_URL` | SQLAlchemy URL - `docker-compose.yml` points this at the `postgres` service; defaults to a local SQLite file when unset (e.g. running without Docker) |
+| `POSTGRES_PASSWORD` | Password for the `postgres` service's `dailyptr` user in `docker-compose.yml` - set a real random value (e.g. `openssl rand -hex 20`) for any real deployment |
 | `SANDBOX_MODE` | `docker` (default in compose) or `subprocess` (default locally) |
 | `SANDBOX_IMAGE` | Image tag used for the docker sandbox backend |
 | `SANDBOX_TIMEOUT_SECONDS` | Compile+run wall-clock limit per submission |

@@ -297,7 +297,7 @@ roughly ordered by how cheaply they'd bolt onto what already exists:
   (correctness, security, a real anti-pattern), self-report which ones were
   found, reveal an annotated answer key. Reuses the concept-check
   self-grade UI/pattern almost exactly - just a diff instead of a prompt.
-- **Debugging challenges** (recommended next content type - no new infra):
+- **Debugging challenges (decided 2026-08-19 - see Phase 7 for the spec)**:
   a stack trace or failing-test output plus a broken snippet, multiple
   choice on the root cause. Reuses the quiz UI/grading directly.
 - **Log/metrics investigation challenges**: give a snippet of logs, timings,
@@ -316,6 +316,146 @@ roughly ordered by how cheaply they'd bolt onto what already exists:
   automatically): present a merge-conflict or messy-history scenario,
   have the user resolve/rebase it. Needs a real git sandbox per attempt,
   more infra than everything else on this list for a niche skill.
+
+## Phase 7 - Replace compiled coding problems with Debug challenges (spec, 2026-08-19)
+
+Decided 2026-08-19: writing/compiling C++ in the app is going away, not
+staying alongside something new - "nix the writing of code... even with the
+formatting" was explicit. This **replaces** the Code tab's compiled
+LeetCode-style problems with the Debug challenge idea from Phase 6: a
+broken snippet + failing output, multiple choice on the root cause,
+auto-graded like the quiz (not self-reported). Austin is implementing this
+himself with checkpoints, not me - this is the spec, not a build log.
+
+**Why this is a bigger deletion than it looks**: the Code tab isn't just
+content, it's the reason the sandbox subsystem exists at all. Retiring it
+means retiring that whole subsystem too - which also happens to be the
+thing that made Railway/Render hosting awkward (`SANDBOX_MODE=docker`
+needs a host Docker socket that PaaS hosts don't give you) and the thing
+responsible for the ~10s-per-submission latency traced earlier this
+session. Removing it is a real simplification, not just a content swap.
+
+**New model** (`backend/app/models.py`):
+```python
+class DebugChallenge(Base):
+    __tablename__ = "debug_challenges"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
+    difficulty: Mapped[str] = mapped_column(String(16), index=True)
+    topic: Mapped[str] = mapped_column(String(64))
+    snippet: Mapped[str] = mapped_column(Text)              # the broken code
+    trace: Mapped[str] = mapped_column(Text, default="")    # stack trace / failing test output
+    choices: Mapped[list] = mapped_column(JSON)             # list[str] - root-cause options
+    correct_index: Mapped[int] = mapped_column(Integer)     # never sent to client until graded
+    explanation: Mapped[str] = mapped_column(Text, default="")
+```
+Deliberately QuizQuestion-shaped (same grading model: multiple choice,
+`correct_index` withheld pre-submit) but with two content fields
+(`snippet` + `trace`) instead of one.
+
+**`Day` model**: `coding_problem_id`/`coding_completed`/`coding_attempts`
+are replaced by `debug_challenge_id` (FK) and `debug_completed` - no
+"attempts" counter, since like quiz/concept this is graded once, not
+retried in place (retry is already handled at the day level via "Reset
+day"). `fully_completed` becomes `quiz_completed and debug_completed and
+concept_completed`.
+
+**Open design question - decide before Checkpoint 3**: `html_css` and
+`system_design` currently use a *different* self-checked "coding" flow
+(submit an attempt, reveal `reference_solution` to compare against - no
+compiler involved for them already). Does Debug replace that too, or do
+those two tracks keep their current self-checked review step under a
+different name/framing? Nothing here mandates one answer - it's a real
+call about what those two tracks are for.
+
+**Suggested checkpoints** (in dependency order - each should leave
+`pytest tests/` green before moving to the next):
+1. **Additive only**: `DebugChallenge` model, an Alembic migration for it,
+   a small seed bank (`content/debug_bank.py`, `cpp_core` only to start -
+   maybe 2 entries per difficulty tier, expand later), `DebugChallengeOut`/
+   `DebugSubmitIn`/`DebugSubmitOut` schemas, `routers/debug.py` (mirror
+   `routers/quiz.py`'s shape almost exactly), `scoring.points_for_debug()`.
+   Nothing on `Day` changes yet - this proves the new piece works in
+   isolation before anything is wired in or removed.
+2. **Wire it in**: add `debug_challenge_id`/`debug_completed` to `Day`
+   (another migration), update `day_service.py`'s content-picking to also
+   pick a debug challenge, update `fully_completed`, add the frontend tab
+   (reuse the Quiz tab's rendering pattern - it's the closest existing
+   shape). At this point Debug and Code both exist side by side - useful
+   for comparing before deleting anything.
+3. **Remove Code**, resolving the open design question above first:
+   `models.CodingProblem`/`CodeSubmission`, `routers/coding.py`,
+   `backend/app/sandbox/` (the whole package), the Code tab/CodeMirror/
+   block-mode UI in `frontend/`, `docker-compose.yml`'s docker CLI install
+   + `/var/run/docker.sock` mount + `SANDBOX_*` env vars +
+   `sandbox-runner/` build context, and `config.py`'s `SANDBOX_*` settings
+   and `uses_sandbox` (every track becomes the same shape once nothing
+   compiles). Migration to drop the now-unused columns/tables.
+4. Re-seed: retire `content/coding_bank.py`/`cpp_backend_bank.py`, decide
+   what (if anything) `html_css`/`system_design` need per the open question
+   above.
+
+## Phase 8 - Guest mode: local-only until sign-in (spec, 2026-08-19)
+
+Decided 2026-08-19: guest ("Play offline") accounts currently create a real
+`User` row and persist every `Day`/submission to Postgres exactly like a
+real account - just with a random identity instead of a Google one. New
+requirement: a guest's progress should live **only in their own browser**
+(not the database) until/unless they sign in with Google, at which point
+their locally-accumulated progress gets pushed up into their new real
+account. This is a genuine architecture change (auth flow, every router,
+and the frontend's state management all touch it), so it's a spec, not a
+same-session build.
+
+**The key fact that makes this tractable**: a day's content selection
+(which quiz questions / debug challenge / concept check get picked) is
+already a *pure function* of `(date, track)` - `day_service.py`'s RNG is
+seeded from `target_date.toordinal()` and the track name only, never from
+`user_id`. Every user, guest or not, sees identical content for the same
+`(date, track)`. That means "what's today's challenge" doesn't inherently
+need a persisted `Day` row or even a real user at all - only *progress on*
+that challenge does.
+
+**Shape of the change**:
+- **A stateless content-fetch path for guests**: same deterministic
+  picking logic `day_service.py` already has, exposed without writing a
+  `Day` row - e.g. a variant that returns the same `ChallengeOut` shape
+  (or close to it) keyed on `(date, track)` alone, no `user_id` involved.
+- **Stateless grading for guests**: quiz/debug grading is already "look up
+  `correct_index` from the content bank, compare, compute points" - that
+  logic doesn't structurally need a `Day` row either, just needs splitting
+  from the "now persist it" half that currently follows it in each router.
+  Concept-check grading is already self-reported/trusted today (no
+  change in trust model there). Whatever Phase 7 leaves as the "coding"
+  equivalent should get the same treatment.
+- **Client-side progress store** (`frontend/app.js`): a
+  `localStorage`-backed object, not actual cookies (cookies are sent on
+  every request and capped around 4KB - localStorage is the right tool for
+  a structured per-day progress blob that only needs to live in this one
+  browser) - keyed by `(track, date)`, shaped like today's `DayOut`
+  (`quiz_completed`, `points_earned`, etc.) so as much of the existing
+  rendering code as possible doesn't need to know whether it's looking at
+  server or local state.
+- **History/calendar/stats for guests**: computed client-side from that
+  same localStorage store instead of `/api/history`/`/api/stats` - no
+  cross-device sync, which is an inherent, acceptable limitation of "not in
+  the database yet."
+- **Claim-on-sign-in**: after a successful Google sign-in that started as a
+  guest with local progress, POST the accumulated local data to a new
+  endpoint that replays it into real `Day`/grading calls for the
+  now-authenticated user. **Recompute correctness/points server-side from
+  the content bank rather than trusting the client's claimed results** for
+  anything that has a real answer key (quiz, debug) - the same way
+  submissions are graded live today. This isn't a new trust hole: it's the
+  same trust model concept-checks already use (self-reported), just applied
+  to a batch of past days instead of one live submission.
+- **Open question**: does "Play offline" still create *any* server-side
+  identity up front (so a session cookie has something to reference,
+  consistent with how auth currently works), or does guest mode need to
+  work with no cookie/session at all until the first real sign-in? The
+  simpler path is probably keeping a lightweight guest `User` row for
+  session-cookie purposes but genuinely never writing `Day`/submission rows
+  against it - worth deciding explicitly rather than assuming.
 
 ## Decisions made along the way (and why)
 
