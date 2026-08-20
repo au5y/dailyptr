@@ -33,49 +33,35 @@ DIFFICULTY_POINT_MULTIPLIER = {
 }
 
 BASE_POINTS_PER_QUIZ_QUESTION = 10
-BASE_POINTS_PER_CODING_PROBLEM = 50
+BASE_POINTS_PER_CODE_REVIEW = 50
 BASE_POINTS_PER_CONCEPT_CHECK = 15
 ON_TIME_STREAK_BONUS = 5  # awarded only when a day is completed on its own date
+
+# Streak milestone badges (see models.MilestoneAward, scoring.award_new_milestones):
+# a one-time bonus the first time a user's current streak (per track) reaches
+# each threshold. Awarded once per (user, track, milestone) - never re-awarded
+# even if the streak later resets and climbs back past it.
+STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 200, 365]
+STREAK_MILESTONE_BONUS = {
+    3: 20.0, 7: 50.0, 14: 100.0, 30: 250.0, 60: 500.0, 100: 1000.0, 200: 2500.0, 365: 5000.0,
+}
 
 QUESTIONS_PER_DAY = 3
 
 # A "track" is an independent daily-challenge subject: its own content pool,
 # its own Day rows (keyed by (date, track)), its own streak/points via
-# scoring.compute_stats(db, track). "uses_sandbox" tracks compile/run real
-# C++ through app/sandbox; others (currently html_css) get a self-check flow
-# instead - see routers/coding.py.
+# scoring.compute_stats(db, track). Every track is self-checked (no compiler
+# involved) - see routers/code_review.py.
 DEFAULT_TRACK = "cpp_core"
 TRACKS = {
-    "cpp_core": {"name": "C++ Core", "uses_sandbox": True},
-    "html_css": {"name": "Learning HTML/CSS", "uses_sandbox": False},
-    "system_design": {"name": "System Design", "uses_sandbox": False},
+    "cpp_core": {"name": "C++ Core"},
+    "html_css": {"name": "Learning HTML/CSS"},
+    "system_design": {"name": "System Design"},
 }
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", f"sqlite:///{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/local.db"
 )
-
-# "docker"  -> spins up a real, network-disabled container per submission (production / self-hosted)
-# "subprocess" -> compiles/runs with a locked-down local subprocess (local dev, no Docker daemon needed)
-SANDBOX_MODE = os.environ.get("SANDBOX_MODE", "subprocess")
-SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "dailyptr-sandbox:latest")
-SANDBOX_TIMEOUT_SECONDS = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "10"))
-SANDBOX_MEMORY_LIMIT = os.environ.get("SANDBOX_MEMORY_LIMIT", "128m")
-SANDBOX_CPU_LIMIT = os.environ.get("SANDBOX_CPU_LIMIT", "1.0")
-
-# Docker-outside-of-Docker path translation (only matters for SANDBOX_MODE=docker):
-# this backend process's temp files live at SANDBOX_TMP_DIR *inside its own
-# container*, but the `docker run -v <path>:/sandbox` it issues goes to the
-# HOST daemon over the mounted socket, which resolves that path on the HOST
-# filesystem - a container-local /tmp path means nothing there. docker-compose
-# bind-mounts one real host directory at SANDBOX_TMP_DIR inside this container
-# and also tells it that same directory's HOST-side absolute path via
-# SANDBOX_HOST_TMP_DIR, so docker_runner.py can swap the prefix when building
-# the mount flag. Leave SANDBOX_HOST_TMP_DIR unset if running the backend
-# directly on the host (no translation needed - the path is the same on both
-# "sides" because there's only one side).
-SANDBOX_TMP_DIR = os.environ.get("SANDBOX_TMP_DIR") or None  # None -> tempfile's normal default
-SANDBOX_HOST_TMP_DIR = os.environ.get("SANDBOX_HOST_TMP_DIR", "")
 
 # Optional: AI grading of concept-check free responses via the Anthropic API.
 # Unset -> the app falls back to the plain self-graded "Got it / Missed it" flow.

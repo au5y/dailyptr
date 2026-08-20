@@ -7,7 +7,6 @@ import pytest
 # Must be set before `app.*` modules are imported anywhere, since database.py
 # reads config.DATABASE_URL at import time to build the SQLAlchemy engine.
 os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mktemp(suffix='.db')}"
-os.environ.setdefault("SANDBOX_MODE", "subprocess")  # no Docker daemon needed to run the suite
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app import auth, models  # noqa: E402

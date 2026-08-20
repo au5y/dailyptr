@@ -13,20 +13,17 @@ class QuizQuestionOut(BaseModel):
     # correct_index intentionally omitted - not sent to the client until graded
 
 
-class DocLink(BaseModel):
-    label: str
-    url: str
-
-
-class CodingProblemOut(BaseModel):
+class CodeReviewChallengeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     title: str
-    description: str
-    starter_code: str
-    test_case_summary: str
-    docs: list[DocLink] = []
+    snippet: str
+    # Shuffled: the real reason for every issue in the snippet, plus decoys -
+    # built by the router, not stored directly on the model. Which entries
+    # are real vs. decoy, and which line each real one belongs to, are
+    # intentionally not sent until graded.
+    reason_bank: list[str]
 
 
 class ConceptCheckOut(BaseModel):
@@ -45,7 +42,6 @@ class ConceptCheckOut(BaseModel):
 class TrackOut(BaseModel):
     id: str
     name: str
-    uses_sandbox: bool
     subscribed: bool = False
 
 
@@ -68,8 +64,9 @@ class DayOut(BaseModel):
     quiz_completed: bool
     quiz_correct: int
     quiz_total: int
-    coding_completed: bool
-    coding_attempts: int
+    code_review_completed: bool
+    code_review_correct: int
+    code_review_total: int
     concept_completed: bool
     concept_self_rating: bool
     points_earned: float
@@ -82,39 +79,27 @@ class DayOut(BaseModel):
 class ChallengeOut(BaseModel):
     day: DayOut
     quiz: list[QuizQuestionOut]
-    coding: CodingProblemOut
+    code_review: CodeReviewChallengeOut
     concept: ConceptCheckOut
 
 
-class QuizSubmitIn(BaseModel):
-    answers: dict[int, int]  # question_id -> chosen_index
+class QuizAnswerIn(BaseModel):
+    choice_index: int
 
 
-class QuizSubmitOut(BaseModel):
-    correct: int
-    total: int
+class QuizAnswerOut(BaseModel):
+    correct: bool
+    correct_index: int
+    explanation: str
+    # True once every question in the quiz has been answered - the point at
+    # which the quiz as a whole is scored and locked.
+    quiz_completed: bool
+    quiz_correct: int
+    quiz_total: int
     points_awarded: float
-    results: dict[int, bool]
-    explanations: dict[int, str]
-    # Revealed only now that the quiz is graded - lets the UI highlight the
-    # correct choice, not just whether the user's pick was right.
-    correct_indices: dict[int, int]
-
-
-class CodeSubmitIn(BaseModel):
-    code: str
-
-
-class CodeSubmitOut(BaseModel):
-    passed: bool
-    tests_passed: int
-    tests_total: int
-    output: str
-    error: str
-    points_awarded: float
-    # Only set for non-sandboxed tracks (see config.TRACKS) - the reference
-    # solution to compare your own attempt against, revealed after submitting.
-    reference_solution: str | None = None
+    # Streak milestones (config.STREAK_MILESTONES) newly reached by this
+    # submission, if it's the one that finished the day - usually empty.
+    milestones_hit: list[int] = []
 
 
 class ConceptSubmitIn(BaseModel):
@@ -126,13 +111,7 @@ class ConceptSubmitOut(BaseModel):
 
     model_answer: str
     points_awarded: float
-
-
-class CodeBlocksOut(BaseModel):
-    # Shuffled lines of the reference solution, for the optional Duolingo-style
-    # "assemble the code" mobile mode - see routers/coding.py. Only fetched
-    # when the user turns that mode on; a plain ChallengeOut never includes it.
-    lines: list[str]
+    milestones_hit: list[int] = []
 
 
 class ConceptGradeIn(BaseModel):
@@ -144,6 +123,35 @@ class ConceptGradeOut(BaseModel):
     feedback: str
 
 
+class CodeReviewMatchIn(BaseModel):
+    line: int
+    reason: str
+
+
+class CodeReviewSubmitIn(BaseModel):
+    # One entry per line the user flagged, each paired with the reason they
+    # picked for it from CodeReviewChallengeOut.reason_bank.
+    matches: list[CodeReviewMatchIn]
+
+
+class CodeReviewIssueResult(BaseModel):
+    line: int
+    reason: str
+    explanation: str
+    # Whether the user flagged this line at all, and (if so) whether the
+    # reason they matched to it was the right one.
+    line_found: bool
+    reason_correct: bool
+
+
+class CodeReviewSubmitOut(BaseModel):
+    correct_count: int
+    total: int
+    results: list[CodeReviewIssueResult]
+    points_awarded: float
+    milestones_hit: list[int] = []
+
+
 class AppConfigOut(BaseModel):
     ai_grading_enabled: bool
 
@@ -152,6 +160,7 @@ class MeOut(BaseModel):
     email: str
     name: str
     onboarded: bool
+    is_guest: bool
 
 
 class StatsOut(BaseModel):
@@ -160,3 +169,4 @@ class StatsOut(BaseModel):
     longest_streak: int
     days_completed: int
     days_missed_open: int  # past days not yet fully completed
+    badges: list[int]  # streak milestones (config.STREAK_MILESTONES) earned on this track

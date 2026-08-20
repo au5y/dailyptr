@@ -43,13 +43,14 @@ def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Dep
 
     points = 0.0
     bonus = 0.0
+    milestones_hit: list[int] = []
     if not day.concept_completed:
         day.concept_completed = True
         day.concept_self_rating = body.self_rating_correct
         if body.self_rating_correct:
             points = scoring.points_for_concept(day.difficulty)
             day.points_earned += points
-        bonus = scoring.maybe_award_completion_bonus(day)
+        bonus, milestones_hit = scoring.maybe_award_completion_bonus(db, user, day)
         db.commit()
 
-    return schemas.ConceptSubmitOut(model_answer=concept.model_answer, points_awarded=points + bonus)
+    return schemas.ConceptSubmitOut(model_answer=concept.model_answer, points_awarded=points + bonus, milestones_hit=milestones_hit)

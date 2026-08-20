@@ -40,6 +40,24 @@ class TrackSubscription(Base):
     subscribed_at: Mapped[date_type] = mapped_column(Date, default=date_type.today)
 
 
+class MilestoneAward(Base):
+    """A one-time record that a user's current streak on a track reached a
+    given threshold (see config.STREAK_MILESTONES) - the badge/bonus-points
+    unlock. Unique on (user_id, track, milestone) so it's only ever awarded
+    once, even if the streak later resets and climbs back past the same
+    threshold again - see scoring.award_new_milestones."""
+
+    __tablename__ = "milestone_awards"
+    __table_args__ = (UniqueConstraint("user_id", "track", "milestone", name="uq_milestone_awards_user_track_milestone"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    track: Mapped[str] = mapped_column(String(32), index=True)
+    milestone: Mapped[int] = mapped_column(Integer)  # streak length threshold, e.g. 7
+    points_awarded: Mapped[float] = mapped_column(Float, default=0.0)
+    awarded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
@@ -53,30 +71,29 @@ class QuizQuestion(Base):
     explanation: Mapped[str] = mapped_column(Text, default="")
 
 
-class CodingProblem(Base):
-    __tablename__ = "coding_problems"
+class CodeReviewChallenge(Base):
+    """A ~20-30 line snippet seeded with 1-3 bugs/smells (correctness,
+    security, a real anti-pattern). Objectively graded: the user clicks the
+    line(s) they think are buggy and matches each to a reason from an answer
+    bank - see routers/code_review.py.
+
+    `issues` is a JSON list of {"line": int (1-indexed into `snippet`),
+    "reason": str (short tag, matched against via the answer bank),
+    "explanation": str (longer text revealed after grading)}. `distractor_
+    reasons` is a JSON list of plausible-but-wrong short tags mixed in with
+    the real ones to build the answer bank the client is shown - see
+    schemas.CodeReviewChallengeOut.reason_bank."""
+
+    __tablename__ = "code_review_challenges"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
     difficulty: Mapped[str] = mapped_column(String(16), index=True)
     topic: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(String(128))
-    description: Mapped[str] = mapped_column(Text)
-    starter_code: Mapped[str] = mapped_column(Text)
-    # harness_template contains the literal token {{USER_CODE}} where the
-    # user's submitted code is spliced in before compiling. It embeds its
-    # own test cases and prints "RESULT:<passed>/<total>" as the last line.
-    # Only used for tracks with uses_sandbox=True (see config.TRACKS) - empty
-    # for tracks like html_css that self-check instead of compiling.
-    harness_template: Mapped[str] = mapped_column(Text, default="")
-    test_case_summary: Mapped[str] = mapped_column(Text, default="")  # human-readable, shown to user
-    # Curated cppreference.com (etc.) links relevant to this problem's topic,
-    # e.g. [{"label": "std::string", "url": "https://en.cppreference.com/w/cpp/string/basic_string"}].
-    docs: Mapped[list] = mapped_column(JSON, default=list)
-    # Non-sandbox tracks only: a reference solution revealed after the user
-    # submits their own attempt, instead of a compiled pass/fail (see
-    # routers/coding.py). Never sent to the client before submission.
-    reference_solution: Mapped[str] = mapped_column(Text, default="")
+    snippet: Mapped[str] = mapped_column(Text)  # the broken code to review
+    issues: Mapped[list] = mapped_column(JSON)  # list[{"line", "reason", "explanation"}]
+    distractor_reasons: Mapped[list] = mapped_column(JSON, default=list)  # list[str]
 
 
 class ConceptCheck(Base):
@@ -104,15 +121,21 @@ class Day(Base):
     difficulty: Mapped[str] = mapped_column(String(16))
 
     quiz_question_ids: Mapped[list] = mapped_column(JSON)  # list[int]
-    coding_problem_id: Mapped[int] = mapped_column(ForeignKey("coding_problems.id"))
+    code_review_challenge_id: Mapped[int] = mapped_column(ForeignKey("code_review_challenges.id"))
     concept_check_id: Mapped[int] = mapped_column(ForeignKey("concept_checks.id"))
 
     quiz_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     quiz_correct: Mapped[int] = mapped_column(Integer, default=0)
     quiz_total: Mapped[int] = mapped_column(Integer, default=0)
+    # question_id (as str, JSON keys are always strings) -> chosen choice index.
+    # Answering a question writes/overwrites its entry here immediately; the
+    # quiz as a whole finalizes (quiz_completed, scoring) once every id in
+    # quiz_question_ids has an entry - see routers/quiz.py.
+    quiz_answers: Mapped[dict] = mapped_column(JSON, default=dict)
 
-    coding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    coding_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    code_review_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    code_review_correct: Mapped[int] = mapped_column(Integer, default=0)
+    code_review_total: Mapped[int] = mapped_column(Integer, default=0)
 
     concept_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     concept_self_rating: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -123,21 +146,4 @@ class Day(Base):
 
     @property
     def fully_completed(self) -> bool:
-        return self.quiz_completed and self.coding_completed and self.concept_completed
-
-
-class CodeSubmission(Base):
-    """Audit log of every code submission (also lets the sandbox module be tested independently)."""
-
-    __tablename__ = "code_submissions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    day_id: Mapped[int] = mapped_column(ForeignKey("days.id"))
-    problem_id: Mapped[int] = mapped_column(ForeignKey("coding_problems.id"))
-    code: Mapped[str] = mapped_column(Text)
-    passed: Mapped[bool] = mapped_column(Boolean, default=False)
-    tests_passed: Mapped[int] = mapped_column(Integer, default=0)
-    tests_total: Mapped[int] = mapped_column(Integer, default=0)
-    output: Mapped[str] = mapped_column(Text, default="")
-    error: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+        return self.quiz_completed and self.code_review_completed and self.concept_completed

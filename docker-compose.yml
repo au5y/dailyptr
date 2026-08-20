@@ -1,16 +1,4 @@
-version: "3.8"
-
 services:
-  # Builds the isolated image used to compile/run each C++ submission.
-  # It is never "run" as a long-lived service - the web container launches
-  # short-lived containers from this image on demand.
-  sandbox-image:
-    build:
-      context: ./sandbox-runner
-    image: dailyptr-sandbox:latest
-    # This service only exists so `docker compose build` produces the image.
-    command: ["true"]
-
   postgres:
     image: postgres:16-alpine
     container_name: dailyptr-postgres
@@ -40,8 +28,6 @@ services:
       - default
       - arr-net
     environment:
-      - SANDBOX_MODE=docker
-      - SANDBOX_IMAGE=dailyptr-sandbox:latest
       - DATABASE_URL=postgresql+psycopg2://dailyptr:${POSTGRES_PASSWORD:-dailyptr_insecure_default}@postgres:5432/dailyptr
       # Signs per-user login session cookies (app/auth.py) - set a real
       # random value on the host (e.g. `openssl rand -hex 32`), otherwise
@@ -57,25 +43,12 @@ services:
       # (uvicorn here isn't run with --proxy-headers, so it can't infer
       # https on its own) - see app/config.py.
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
-      # Optional: enables AI grading of concept-check answers. Unset on the
-      # host -> the app falls back to the plain self-graded flow.
+      # Optional: enables AI grading of concept-check/code-review answers.
+      # Unset on the host -> the app falls back to the plain self-graded flow.
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      # Docker-outside-of-Docker path translation for the sandbox's bind mount
-      # (see app/sandbox/docker_runner.py) - SANDBOX_TMP_DIR is where this
-      # container itself sees the shared directory below; SANDBOX_HOST_TMP_DIR
-      # is that same directory's path on the actual host, which is what the
-      # sibling `docker run` (sent to the host daemon over the socket) needs.
-      - SANDBOX_TMP_DIR=/sandbox-tmp
-      - SANDBOX_HOST_TMP_DIR=${PWD}/data/sandbox-tmp
     volumes:
-      - ./data/sandbox-tmp:/sandbox-tmp
       - ./frontend:/app/frontend:ro
-      # Docker-outside-of-Docker: lets the web container ask the HOST docker
-      # daemon to spin up sandbox containers as siblings, not nested inside it.
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      sandbox-image:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     restart: unless-stopped

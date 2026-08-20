@@ -7,6 +7,7 @@ from .. import config, models, schemas, scoring
 from ..auth import get_current_user
 from ..database import get_db
 from ..day_service import get_or_create_day, start_date_for, subscribe
+from .code_review import build_challenge_out as build_code_review_out
 
 router = APIRouter(prefix="/api", tags=["challenges"])
 
@@ -26,7 +27,7 @@ def _build_challenge_out(db: Session, user: models.User, day: models.Day) -> sch
     by_id = {q.id: q for q in questions}
     ordered = [by_id[i] for i in day.quiz_question_ids if i in by_id]
 
-    coding = db.get(models.CodingProblem, day.coding_problem_id)
+    code_review = db.get(models.CodeReviewChallenge, day.code_review_challenge_id)
     concept = db.get(models.ConceptCheck, day.concept_check_id)
 
     start_date = start_date_for(db, user, day.track)
@@ -37,7 +38,7 @@ def _build_challenge_out(db: Session, user: models.User, day: models.Day) -> sch
     return schemas.ChallengeOut(
         day=day_out,
         quiz=[schemas.QuizQuestionOut.model_validate(q, from_attributes=True) for q in ordered],
-        coding=schemas.CodingProblemOut.model_validate(coding, from_attributes=True),
+        code_review=build_code_review_out(code_review),
         concept=schemas.ConceptCheckOut.model_validate(concept, from_attributes=True),
     )
 
@@ -49,7 +50,12 @@ def get_app_config():
 
 @router.get("/me", response_model=schemas.MeOut)
 def get_me(user: models.User = Depends(get_current_user)):
-    return schemas.MeOut(email=user.email, name=user.name, onboarded=user.onboarded)
+    return schemas.MeOut(
+        email=user.email,
+        name=user.name,
+        onboarded=user.onboarded,
+        is_guest=user.google_sub.startswith("guest-"),
+    )
 
 
 @router.get("/tracks", response_model=list[schemas.TrackOut])
@@ -58,7 +64,7 @@ def get_tracks(db: Session = Depends(get_db), user: models.User = Depends(get_cu
         s.track for s in db.query(models.TrackSubscription).filter(models.TrackSubscription.user_id == user.id).all()
     }
     return [
-        schemas.TrackOut(id=tid, name=meta["name"], uses_sandbox=meta["uses_sandbox"], subscribed=tid in subscribed)
+        schemas.TrackOut(id=tid, name=meta["name"], subscribed=tid in subscribed)
         for tid, meta in config.TRACKS.items()
     ]
 
@@ -135,8 +141,10 @@ def reset_day(day_id: int, db: Session = Depends(get_db), user: models.User = De
 
     day.quiz_completed = False
     day.quiz_correct = 0
-    day.coding_completed = False
-    day.coding_attempts = 0
+    day.quiz_answers = {}
+    day.code_review_completed = False
+    day.code_review_correct = 0
+    day.code_review_total = 0
     day.concept_completed = False
     day.concept_self_rating = False
     day.points_earned = 0.0

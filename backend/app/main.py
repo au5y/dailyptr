@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import auth, config
 from .database import init_db, SessionLocal
 from .seed import seed_content
-from .routers import challenges, quiz, coding, concept
+from .routers import challenges, quiz, code_review, concept
 
 # The frontend is a handful of static files. docker-compose mounts the repo's
 # ./frontend directory to /app/frontend inside the container; running locally
@@ -44,7 +44,7 @@ app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY, same_site="l
 
 app.include_router(challenges.router)
 app.include_router(quiz.router)
-app.include_router(coding.router)
+app.include_router(code_review.router)
 app.include_router(concept.router)
 
 

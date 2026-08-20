@@ -1,10 +1,7 @@
 """
-Seed content for the "Learning HTML/CSS" track. This track has
-uses_sandbox=False (see config.TRACKS) - there's no compiler to check HTML/
-CSS against, so "coding" problems here have no harness_template; instead the
-user writes their attempt, submits it, and the response reveals
-reference_solution for them to compare against (self-check, like the concept
-check, but for a markup/style snippet - see routers/coding.py).
+Seed content for the "Learning HTML/CSS" track. Its code review challenges
+(see content/code_review_bank.py) live separately, alongside the other
+tracks', since they're all the same self-graded shape now.
 """
 
 TRACK = "html_css"
@@ -159,123 +156,6 @@ HTML_CSS_QUIZ = [
         ],
         "correct_index": 1,
         "explanation": "Semantic HTML elements ship with accessibility built in; the moment you rebuild their look from generic elements, you take on the responsibility of reimplementing their keyboard behavior and screen-reader semantics via ARIA and JS.",
-    },
-]
-
-HTML_CSS_PRACTICE = [
-    {
-        "difficulty": "easy",
-        "topic": "Semantic HTML",
-        "title": "Semantic Nav Bar",
-        "description": (
-            "Write the HTML for a page navigation bar containing a site title/logo and 3 links (Home, About, "
-            "Contact), using proper semantic elements (think <nav>, <ul>/<li>, <a>) rather than generic <div>s."
-        ),
-        "starter_code": (
-            "<!-- Write your nav bar markup here -->\n"
-            "<nav>\n\n"
-            "</nav>\n"
-        ),
-        "docs": [
-            {"label": "<nav> - MDN", "url": "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/nav"},
-        ],
-        "test_case_summary": "Self-checked: submit your attempt, then compare against the reference markup.",
-        "reference_solution": (
-            "<nav>\n"
-            "  <a href=\"/\" class=\"logo\">MySite</a>\n"
-            "  <ul>\n"
-            "    <li><a href=\"/\">Home</a></li>\n"
-            "    <li><a href=\"/about\">About</a></li>\n"
-            "    <li><a href=\"/contact\">Contact</a></li>\n"
-            "  </ul>\n"
-            "</nav>\n"
-        ),
-    },
-    {
-        "difficulty": "medium",
-        "topic": "Flexbox",
-        "title": "Center a Card with Flexbox",
-        "description": (
-            "Write CSS so that a `.card` element is centered both horizontally and vertically inside its "
-            "full-viewport-height parent `.container`, using Flexbox."
-        ),
-        "starter_code": (
-            "/* .container is position: relative; height: 100vh; */\n"
-            ".container {\n"
-            "    /* TODO: add flexbox centering */\n"
-            "}\n"
-        ),
-        "docs": [
-            {"label": "A Complete Guide to Flexbox (CSS-Tricks)", "url": "https://css-tricks.com/snippets/css/a-guide-to-flexbox/"},
-        ],
-        "test_case_summary": "Self-checked: submit your attempt, then compare against the reference solution.",
-        "reference_solution": (
-            ".container {\n"
-            "    height: 100vh;\n"
-            "    display: flex;\n"
-            "    justify-content: center;\n"
-            "    align-items: center;\n"
-            "}\n"
-        ),
-    },
-    {
-        "difficulty": "hard",
-        "topic": "CSS Grid",
-        "title": "Responsive Gallery Grid",
-        "description": (
-            "Write CSS for a `.gallery` container so its children lay out in 3 equal-width columns on wide "
-            "screens, collapsing to a single column below 600px, using CSS Grid and a media query."
-        ),
-        "starter_code": (
-            ".gallery {\n"
-            "    /* TODO: 3-column grid, gap between items */\n"
-            "}\n\n"
-            "/* TODO: add a media query for screens narrower than 600px */\n"
-        ),
-        "docs": [
-            {"label": "CSS Grid Layout - MDN", "url": "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout"},
-        ],
-        "test_case_summary": "Self-checked: submit your attempt, then compare against the reference solution.",
-        "reference_solution": (
-            ".gallery {\n"
-            "    display: grid;\n"
-            "    grid-template-columns: repeat(3, 1fr);\n"
-            "    gap: 16px;\n"
-            "}\n\n"
-            "@media (max-width: 600px) {\n"
-            "    .gallery {\n"
-            "        grid-template-columns: 1fr;\n"
-            "    }\n"
-            "}\n"
-        ),
-    },
-    {
-        "difficulty": "expert",
-        "topic": "Accessibility",
-        "title": "Accessible Modal Markup",
-        "description": (
-            "Write the HTML structure (with ARIA attributes) for an accessible modal dialog: a title, some body "
-            "text, and a close button. It should be identifiable to assistive tech as a modal dialog labelled by "
-            "its title."
-        ),
-        "starter_code": (
-            "<!-- Write your accessible modal markup here -->\n"
-            "<div>\n\n"
-            "</div>\n"
-        ),
-        "docs": [
-            {"label": "ARIA: dialog role - MDN", "url": "https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/dialog_role"},
-        ],
-        "test_case_summary": "Self-checked: submit your attempt, then compare against the reference markup.",
-        "reference_solution": (
-            "<div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"modal-title\">\n"
-            "  <h2 id=\"modal-title\">Confirm action</h2>\n"
-            "  <p>Are you sure you want to continue?</p>\n"
-            "  <button type=\"button\" aria-label=\"Close dialog\">×</button>\n"
-            "</div>\n"
-            "<!-- Also needed in real use: move focus into the dialog on open, trap focus while it's\n"
-            "     open, restore focus to the trigger on close, and close on Escape. -->\n"
-        ),
     },
 ]
 

@@ -7,24 +7,42 @@ from app import auth, models
 from app.database import SessionLocal
 from app.main import app
 
-from .solutions import SOLUTIONS_BY_TITLE
-
 # 2024-01-01 was a Monday, so this week gives one date per weekday tier
 # (Mon/Tue=easy, Wed/Thu=medium, Fri/Sat=hard, Sun=expert). All in the past
 # relative to "today" so get_or_create_day's future-date guard never trips.
 WEEK_START = date(2024, 1, 1)
 
 
-def _quiz_answers_for(day_id: int) -> dict[int, int]:
-    """Look up the correct index straight from the DB (the API never exposes it)."""
+def _quiz_question_ids_and_correct(day_id: int) -> list[tuple[int, int]]:
+    """[(question_id, correct_index), ...] for a day's quiz, looked up straight
+    from the DB (the API never exposes correct_index before it's answered)."""
     db = SessionLocal()
     try:
         day = db.get(models.Day, day_id)
-        answers = {}
-        for qid in day.quiz_question_ids:
-            q = db.get(models.QuizQuestion, qid)
-            answers[qid] = q.correct_index
-        return answers
+        return [(qid, db.get(models.QuizQuestion, qid).correct_index) for qid in day.quiz_question_ids]
+    finally:
+        db.close()
+
+
+def _answer_quiz_correctly(client: TestClient, day_id: int):
+    """Answers every question of a day's quiz correctly, one at a time (the
+    only way the API allows), and returns the quiz-completing response."""
+    resp = None
+    for qid, correct_index in _quiz_question_ids_and_correct(day_id):
+        resp = client.post(f"/api/quiz/{day_id}/question/{qid}/answer", json={"choice_index": correct_index})
+        assert resp.status_code == 200, resp.text
+    return resp
+
+
+def _correct_code_review_matches(day_id: int) -> list[dict]:
+    """[{"line", "reason"}, ...] for every issue in a day's code review
+    challenge, looked up straight from the DB (the API never exposes which
+    lines/reasons are correct before grading)."""
+    db = SessionLocal()
+    try:
+        day = db.get(models.Day, day_id)
+        challenge = db.get(models.CodeReviewChallenge, day.code_review_challenge_id)
+        return [{"line": issue["line"], "reason": issue["reason"]} for issue in challenge.issues]
     finally:
         db.close()
 
@@ -35,7 +53,7 @@ def test_today_endpoint_returns_a_full_challenge(client):
     body = resp.json()
     assert body["day"]["date"] == date.today().isoformat()
     assert len(body["quiz"]) == 3
-    assert "id" in body["coding"]
+    assert "id" in body["code_review"]
     assert "prompt" in body["concept"]
     # correct_index must never leak to the client
     assert "correct_index" not in body["quiz"][0]
@@ -45,6 +63,45 @@ def test_future_day_is_rejected(client):
     future = (date.today() + timedelta(days=3)).isoformat()
     resp = client.get(f"/api/day/{future}")
     assert resp.status_code == 400
+
+
+def _complete_day(client: TestClient, d: date) -> dict:
+    """Fully completes one day (quiz, code review, concept) and returns the
+    final component's response body, so the caller can inspect e.g.
+    milestones_hit on whichever submission actually finished the day."""
+    day_id = client.get(f"/api/day/{d.isoformat()}").json()["day"]["id"]
+    _answer_quiz_correctly(client, day_id)
+    matches = _correct_code_review_matches(day_id)
+    client.post(f"/api/code-review/{day_id}/submit", json={"matches": matches})
+    resp = client.post(f"/api/concept/{day_id}/submit", json={"self_rating_correct": True})
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def test_streak_milestone_awarded_once_at_threshold(client):
+    # 3 consecutive days ending today - the first one to complete a real
+    # (non-backfilled) 3-day streak, so it should hit the 3-day milestone
+    # exactly once, on the 3rd day's completion.
+    day1, day2, today = [date.today() - timedelta(days=n) for n in (2, 1, 0)]
+
+    result1 = _complete_day(client, day1)
+    assert result1["milestones_hit"] == []
+    result2 = _complete_day(client, day2)
+    assert result2["milestones_hit"] == []
+    result3 = _complete_day(client, today)
+    assert result3["milestones_hit"] == [3]
+    assert result3["points_awarded"] > 0
+
+    stats = client.get("/api/stats").json()
+    assert stats["current_streak"] == 3
+    assert stats["badges"] == [3]
+
+    # resetting and re-completing today shouldn't re-award the same milestone
+    day_id = client.get(f"/api/day/{today.isoformat()}").json()["day"]["id"]
+    client.post(f"/api/day/{day_id}/reset")
+    result_again = _complete_day(client, today)
+    assert result_again["milestones_hit"] == []
+    assert client.get("/api/stats").json()["badges"] == [3]
 
 
 def test_full_week_end_to_end_flow(client):
@@ -57,24 +114,24 @@ def test_full_week_end_to_end_flow(client):
         expected_difficulty = ["easy", "easy", "medium", "medium", "hard", "hard", "expert"][i]
         assert challenge["day"]["difficulty"] == expected_difficulty
 
-        # 1. quiz - answer everything correctly
-        answers = _quiz_answers_for(day_id)
-        quiz_resp = client.post(f"/api/quiz/{day_id}/submit", json={"answers": answers})
-        assert quiz_resp.status_code == 200, quiz_resp.text
-        quiz_result = quiz_resp.json()
-        assert quiz_result["correct"] == quiz_result["total"] == 3
+        # 1. quiz - answer everything correctly, one question at a time
+        quiz_result = _answer_quiz_correctly(client, day_id).json()
+        assert quiz_result["quiz_completed"] is True
+        assert quiz_result["quiz_correct"] == quiz_result["quiz_total"] == 3
         assert quiz_result["points_awarded"] > 0
 
-        # resubmitting should be rejected
-        assert client.post(f"/api/quiz/{day_id}/submit", json={"answers": answers}).status_code == 400
+        # answering again once the quiz is completed should be rejected
+        qid, correct_index = _quiz_question_ids_and_correct(day_id)[0]
+        resp = client.post(f"/api/quiz/{day_id}/question/{qid}/answer", json={"choice_index": correct_index})
+        assert resp.status_code == 400
 
-        # 2. coding - submit the known-correct solution for whichever problem was assigned
-        title = challenge["coding"]["title"]
-        code_resp = client.post(f"/api/coding/{day_id}/submit", json={"code": SOLUTIONS_BY_TITLE[title]})
-        assert code_resp.status_code == 200, code_resp.text
-        code_result = code_resp.json()
-        assert code_result["passed"] is True
-        assert code_result["points_awarded"] > 0
+        # 2. code review - flag every real issue's line with its real reason
+        matches = _correct_code_review_matches(day_id)
+        code_review_resp = client.post(f"/api/code-review/{day_id}/submit", json={"matches": matches})
+        assert code_review_resp.status_code == 200, code_review_resp.text
+        code_review_result = code_review_resp.json()
+        assert code_review_result["correct_count"] == code_review_result["total"] == len(matches)
+        assert code_review_result["points_awarded"] > 0
 
         # 3. concept check - mark as understood
         concept_resp = client.post(f"/api/concept/{day_id}/submit", json={"self_rating_correct": True})
@@ -91,19 +148,28 @@ def test_full_week_end_to_end_flow(client):
     assert stats["total_points"] > 0
 
 
-def test_bad_coding_submission_does_not_complete_the_day(client):
+def test_code_review_wrong_matches_award_no_points(client):
     d = date(2024, 2, 5)  # a Monday not touched by the full-week test
     challenge = client.get(f"/api/day/{d.isoformat()}").json()
     day_id = challenge["day"]["id"]
 
-    resp = client.post(f"/api/coding/{day_id}/submit", json={"code": "not valid c++"})
+    # A line number no snippet is 500 lines long, paired with a reason that's
+    # never the right one for it - guaranteed to match zero issues.
+    resp = client.post(f"/api/code-review/{day_id}/submit", json={"matches": [{"line": 500, "reason": "nope"}]})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["passed"] is False
+    assert body["correct_count"] == 0
     assert body["points_awarded"] == 0
 
+    # unlike quiz, code review completes either way (there's no retry once
+    # submitted) - only the points differ based on how many matches land.
     refreshed = client.get(f"/api/day/{d.isoformat()}").json()
-    assert refreshed["day"]["coding_completed"] is False
+    assert refreshed["day"]["code_review_completed"] is True
+    assert refreshed["day"]["code_review_correct"] == 0
+
+    # resubmitting is rejected, same as the quiz
+    resp2 = client.post(f"/api/code-review/{day_id}/submit", json={"matches": []})
+    assert resp2.status_code == 400
 
 
 def _logged_in_client() -> TestClient:
@@ -149,8 +215,7 @@ def test_two_users_get_independent_days_for_same_date_and_track():
 
     assert alice_day["id"] != bob_day["id"]
 
-    answers = _quiz_answers_for(alice_day["id"])
-    alice.post(f"/api/quiz/{alice_day['id']}/submit", json={"answers": answers})
+    _answer_quiz_correctly(alice, alice_day["id"])
 
     bob_day_after = bob.get(f"/api/day/{d.isoformat()}").json()["day"]
     assert bob_day_after["quiz_completed"] is False
@@ -206,6 +271,6 @@ def test_cannot_act_on_another_users_day():
     alice_day_id = alice.get(f"/api/day/{d.isoformat()}").json()["day"]["id"]
 
     assert bob.post(f"/api/day/{alice_day_id}/reset").status_code == 404
-    assert bob.post(f"/api/quiz/{alice_day_id}/submit", json={"answers": {}}).status_code == 404
-    assert bob.post(f"/api/coding/{alice_day_id}/submit", json={"code": "x"}).status_code == 404
+    assert bob.post(f"/api/quiz/{alice_day_id}/question/1/answer", json={"choice_index": 0}).status_code == 404
+    assert bob.post(f"/api/code-review/{alice_day_id}/submit", json={"matches": []}).status_code == 404
     assert bob.post(f"/api/concept/{alice_day_id}/submit", json={"self_rating_correct": True}).status_code == 404

@@ -2,6 +2,8 @@
 Optional AI grading for concept-check free responses, via the Anthropic API.
 Only used if ANTHROPIC_API_KEY is set (see config.py) - the app works fine
 without it, falling back to the plain self-graded "Got it / Missed it" flow.
+(Code review is objectively graded now - see routers/code_review.py - so it
+has no AI-grading path.)
 """
 import json
 

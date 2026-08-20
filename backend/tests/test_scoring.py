@@ -24,10 +24,10 @@ def _make_day(d, user_id, fully_completed=True, points=10.0):
         weekday=d.weekday(),
         difficulty="easy",
         quiz_question_ids=[1, 2, 3],
-        coding_problem_id=1,
+        code_review_challenge_id=1,
         concept_check_id=1,
         quiz_completed=fully_completed,
-        coding_completed=fully_completed,
+        code_review_completed=fully_completed,
         concept_completed=fully_completed,
         points_earned=points,
     )
@@ -35,10 +35,18 @@ def _make_day(d, user_id, fully_completed=True, points=10.0):
 
 
 def test_points_scale_with_difficulty():
-    easy = scoring.points_for_coding("easy")
-    hard = scoring.points_for_coding("hard")
-    expert = scoring.points_for_coding("expert")
+    easy = scoring.points_for_code_review(2, 2, "easy")
+    hard = scoring.points_for_code_review(2, 2, "hard")
+    expert = scoring.points_for_code_review(2, 2, "expert")
     assert easy < hard < expert
+
+
+def test_points_scale_with_correct_fraction():
+    full = scoring.points_for_code_review(2, 2, "medium")
+    half = scoring.points_for_code_review(1, 2, "medium")
+    none = scoring.points_for_code_review(0, 2, "medium")
+    assert none == 0
+    assert 0 < half < full
 
 
 def test_compute_stats_current_streak(db_session, test_user):
@@ -64,6 +72,28 @@ def test_compute_stats_missed_open_days(db_session, test_user):
     stats = scoring.compute_stats(db_session, test_user, start_date=today - timedelta(days=5))
     assert stats["days_missed_open"] == 1
     assert stats["current_streak"] == 0
+
+
+def test_award_new_milestones_awards_once_per_threshold(db_session, test_user):
+    hit, bonus = scoring.award_new_milestones(db_session, test_user, "cpp_core", current_streak=3)
+    db_session.commit()
+    assert hit == [3]
+    assert bonus > 0
+
+    # same streak again (e.g. another day at the same length) - no re-award
+    hit, bonus = scoring.award_new_milestones(db_session, test_user, "cpp_core", current_streak=3)
+    db_session.commit()
+    assert hit == []
+    assert bonus == 0
+
+    # jumping straight to 14 awards both 7 and 14 in one go, skipping nothing
+    hit, bonus = scoring.award_new_milestones(db_session, test_user, "cpp_core", current_streak=14)
+    db_session.commit()
+    assert hit == [7, 14]
+    assert bonus > 0
+
+    stats = scoring.compute_stats(db_session, test_user, "cpp_core", start_date=date.today() - timedelta(days=30))
+    assert stats["badges"] == [3, 7, 14]
 
 
 def test_compute_stats_excludes_days_before_start_date(db_session, test_user):

@@ -208,7 +208,7 @@ that's wanted too).
      mockable/swappable and is the actual pattern (Repository / DAL) that
      "object management layer" is reaching for.
 
-## Phase 3 - Harden the sandbox further
+## Phase 3 - Harden the sandbox further (moot - sandbox removed, see Phase 7)
 
 - **Replace the per-submission sandbox runner (design question raised
   2026-08-19, not decided)**: profiling on au5y-serv this session found
@@ -262,6 +262,22 @@ that's wanted too).
 
 ## Phase 4 - Make progress visible
 
+- **Streak milestone badges (done, 2026-08-20)**: a one-time bonus + badge
+  the first time a user's current streak on a track reaches a threshold
+  (`config.STREAK_MILESTONES` = 3/7/14/30/60/100/200/365 days,
+  `STREAK_MILESTONE_BONUS` scales the points). Tracked in a new
+  `MilestoneAward` table, unique on `(user, track, milestone)` so it only
+  ever fires once even across streak resets - checked inside
+  `scoring.maybe_award_completion_bonus` right when a day's last component
+  completes, using the same streak math `/api/stats` already computes (so it
+  only credits a milestone when a completion genuinely extends the *current*
+  streak, not an unrelated backfilled day). Quiz/code-review/concept submit
+  responses carry `milestones_hit`; the frontend pops a toast ("New badge:
+  7-Day Streak!") from whichever tab finishes the day, and the History page
+  shows a row of earned badges plus a preview of the next locked one.
+  Deliberately scoped to just this one streak-feature idea, picked from a
+  handful offered (freezes/protection, an "at risk" reminder, and a friends
+  leaderboard were explicitly not built this pass - worth returning to).
 - **Stats page upgrade**: topic-accuracy breakdown and a points-over-time
   chart (the calendar heatmap part of this already shipped in Phase 1).
 - **Export**: a "download my history as JSON/CSV" button - the backup
@@ -317,7 +333,64 @@ roughly ordered by how cheaply they'd bolt onto what already exists:
   have the user resolve/rebase it. Needs a real git sandbox per attempt,
   more infra than everything else on this list for a niche skill.
 
-## Phase 7 - Replace compiled coding problems with Debug challenges (spec, 2026-08-19)
+## Phase 7 - Replace compiled coding problems with Debug challenges (spec, 2026-08-19; superseded - see below)
+
+**Update, later on 2026-08-19**: the user ended up asking for this to be
+built by Claude directly (in the same session, overriding this section's
+"Austin is implementing this himself" note), and picked **Phase 6's Code
+Review idea** instead of Debug challenges as the actual replacement -
+self-graded (spot 1-3 seeded bugs/smells in a snippet, self-report, reveal
+an annotated answer key), not auto-graded multiple choice on a root cause.
+Everything below is kept as the original spec/rationale for the sandbox
+deletion (still accurate - that part happened as described), but "Debug
+challenges" was not what got built; `models.CodeReviewChallenge`,
+`routers/code_review.py`, and `content/code_review_bank.py` are the real
+result, covering all three tracks (system_design's "snippet" is a short
+design note instead of literal code). See git history around this date for
+the actual commit.
+
+**Update, 2026-08-20 - Code Review made objectively-graded, not self-reported
+(done)**: the self-graded version above didn't last a full day. New shape:
+a longer snippet (~15-30 lines, up from a handful) seeded with 1-3 issues,
+each with a short `reason` tag plus a longer `explanation`
+(`models.CodeReviewChallenge.issues`, JSON). The user clicks the line(s)
+they think are buggy, then matches each flagged line to a reason from an
+answer bank built by mixing the snippet's real reasons with per-entry
+`distractor_reasons` (`routers/code_review.py: build_challenge_out`) -
+click-to-flag-then-tap-to-match, not drag-and-drop (simpler, works the same
+on mobile). Grading is now fully objective and server-side
+(`POST /code-review/{day_id}/submit` compares submitted `{line, reason}`
+pairs against the answer key), so **AI grading and self-rating for code
+review are gone entirely** - `ai_grading.grade_code_review` removed,
+`Day.code_review_self_rating` replaced by `code_review_correct`/
+`code_review_total` (mirrors how the quiz already scores), points now scale
+with the fraction of issues correctly matched
+(`scoring.points_for_code_review(correct_count, total, difficulty)`) instead
+of a flat pass/fail amount. All 24 entries across the three tracks were
+rewritten to the new shape (line numbers are computed from marker tokens at
+content-bank-build time, not hand-counted, so future edits can't silently
+drift out of sync with the seeded `issues`).
+
+Two real bugs worth remembering (same spirit as Phase 1/2's lists):
+- **Editing an already-applied Alembic migration file in place, under the
+  same revision id, does not make Postgres re-run it.** Alembic tracks
+  "current schema state" purely by revision id in `alembic_version` - if a
+  DB already recorded that id before the file's contents changed, a normal
+  restart sees `current == head` and skips straight to app startup, leaving
+  the DB on the *old* column shape while the app code expects the new one.
+  Hit this rewriting the `code_review_challenges`/`days` columns for the
+  redesign above; the fix was a one-off manual `ALTER TABLE` patch on the
+  local dev DB (documented in this session's transcript, not repeated here).
+  Going forward: once a migration has shipped, always add a **new** revision
+  for further schema changes instead of editing an old one in place - which
+  is exactly what `c3f7a1d6e9b2` (milestone_awards, below) did correctly.
+- **`docker restart <container>` does not pick up a freshly-built image** -
+  it restarts the same container from whatever image it was originally
+  `create`d from. After `docker compose build web`, the running dev
+  container needs `docker compose up -d web` (recreate), not `docker
+  restart`, or it silently keeps serving the old backend code (while the
+  bind-mounted frontend updates live, which made this confusing to spot -
+  new JS hitting old API responses, not an obviously-stale deploy).
 
 Decided 2026-08-19: writing/compiling C++ in the app is going away, not
 staying alongside something new - "nix the writing of code... even with the

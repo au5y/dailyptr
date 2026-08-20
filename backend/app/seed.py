@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 
 from . import models
 from .content.quiz_bank import QUIZ_QUESTIONS
-from .content.coding_bank import CODING_PROBLEMS
 from .content.concept_bank import CONCEPT_CHECKS
-from .content.cpp_backend_bank import CPP_BACKEND_QUIZ, CPP_BACKEND_CODING, CPP_BACKEND_CONCEPT
-from .content.html_css_bank import HTML_CSS_QUIZ, HTML_CSS_PRACTICE, HTML_CSS_CONCEPT
-from .content.system_design_bank import SYSTEM_DESIGN_QUIZ, SYSTEM_DESIGN_PRACTICE, SYSTEM_DESIGN_CONCEPT
+from .content.code_review_bank import CODE_REVIEW_CHALLENGES
+from .content.cpp_backend_bank import CPP_BACKEND_QUIZ, CPP_BACKEND_CONCEPT
+from .content.html_css_bank import HTML_CSS_QUIZ, HTML_CSS_CONCEPT
+from .content.system_design_bank import SYSTEM_DESIGN_QUIZ, SYSTEM_DESIGN_CONCEPT
 
 # (items, default track) - items from bank files don't carry an explicit
 # "track" key, so it's defaulted here per source list. The former standalone
@@ -22,9 +22,8 @@ QUIZ_SOURCES = [
     (QUIZ_QUESTIONS, "cpp_core"), (CPP_BACKEND_QUIZ, "cpp_core"), (HTML_CSS_QUIZ, "html_css"),
     (SYSTEM_DESIGN_QUIZ, "system_design"),
 ]
-CODING_SOURCES = [
-    (CODING_PROBLEMS, "cpp_core"), (CPP_BACKEND_CODING, "cpp_core"), (HTML_CSS_PRACTICE, "html_css"),
-    (SYSTEM_DESIGN_PRACTICE, "system_design"),
+CODE_REVIEW_SOURCES = [
+    (items, track) for track, items in CODE_REVIEW_CHALLENGES.items()
 ]
 CONCEPT_SOURCES = [
     (CONCEPT_CHECKS, "cpp_core"), (CPP_BACKEND_CONCEPT, "cpp_core"), (HTML_CSS_CONCEPT, "html_css"),
@@ -41,13 +40,13 @@ def seed_content(db: Session) -> None:
                 continue
             db.add(models.QuizQuestion(**item))
 
-    existing_titles = {(t, title) for (t, title) in db.query(models.CodingProblem.track, models.CodingProblem.title).all()}
-    for items, default_track in CODING_SOURCES:
+    existing_titles = {(t, title) for (t, title) in db.query(models.CodeReviewChallenge.track, models.CodeReviewChallenge.title).all()}
+    for items, default_track in CODE_REVIEW_SOURCES:
         for item in items:
             item = {**item, "track": item.get("track", default_track)}
             if (item["track"], item["title"]) in existing_titles:
                 continue
-            db.add(models.CodingProblem(**item))
+            db.add(models.CodeReviewChallenge(**item))
 
     existing_prompts = {(t, p) for (t, p) in db.query(models.ConceptCheck.track, models.ConceptCheck.prompt).all()}
     for items, default_track in CONCEPT_SOURCES:

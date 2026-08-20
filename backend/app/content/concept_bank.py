@@ -1,8 +1,8 @@
 """
 Seed "concept check" bank: a short free-response prompt the user answers in
-their own words, then self-grades against a model answer. No sandbox needed -
-this is the fastest of the three components to add content for, so it's the
-easiest lever to pull if you want more variety day to day.
+their own words, then self-grades against a model answer. This is the
+fastest of the three components to add content for, so it's the easiest
+lever to pull if you want more variety day to day.
 """
 
 CONCEPT_CHECKS = [

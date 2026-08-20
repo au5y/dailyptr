@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>daily++</title>
-<link rel="icon" type="image/x-icon" href="/static/assets/favicon.ico">
-<link rel="stylesheet" href="static/style.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/css/css.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>daily++</title>
+  <link rel="icon" type="image/x-icon" href="/static/assets/favicon.ico">
+  <link rel="stylesheet" href="static/style.css">
 </head>
+
 <body>
   <div class="app-shell">
 
@@ -25,30 +20,56 @@
       <div class="blob blob-olive"></div>
     </div>
 
+    <div class="milestone-toast" id="milestone-toast" hidden>
+      <span class="milestone-toast-icon" id="milestone-toast-icon">🔥</span>
+      <div class="milestone-toast-text">
+        <strong id="milestone-toast-title"></strong>
+        <span id="milestone-toast-sub"></span>
+      </div>
+    </div>
+
     <main class="shell-main">
 
       <header class="topbar">
         <div class="brand">daily++</div>
         <div class="stats">
           <span class="stat-points">
-            <svg class="stat-star" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L14.7 9.2 L22 9.9 L16.4 14.9 L18.3 22 L12 18 L5.7 22 L7.6 14.9 L2 9.9 L9.3 9.2 Z" fill="var(--yellow)"/></svg>
+            <svg class="stat-star" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2 L14.7 9.2 L22 9.9 L16.4 14.9 L18.3 22 L12 18 L5.7 22 L7.6 14.9 L2 9.9 L9.3 9.2 Z"
+                fill="var(--yellow)" />
+            </svg>
             <strong id="stat-points">0</strong>
           </span>
           <span class="stat-streak">
-            <svg class="flame-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--orange)"/>
-              <path d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z" fill="var(--yellow)"/>
+            <svg class="flame-icon" width="30" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z"
+                fill="var(--orange)" />
+              <path
+                d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z"
+                fill="var(--yellow)" />
             </svg>
             <strong id="stat-streak">0</strong>
           </span>
           <span class="stat" id="stat-missed-wrap" hidden><strong id="stat-missed">0</strong>&nbsp;missed</span>
           <span class="stat" id="me-wrap" hidden><span id="me-label"></span></span>
           <button id="history-toggle" class="btn-chunky btn-ghost">History</button>
-          <form method="post" action="logout" style="display:inline;">
-            <button type="submit" class="btn-chunky btn-ghost">Log out</button>
+          <form method="post" action="logout" id="logout-form">
+            <button type="submit" class="btn-chunky btn-ghost" id="logout-btn">
+              <span id="logout-btn-label">Log out</span>
+              <svg id="logout-btn-google" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/>
+                <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z"/>
+              </svg>
+            </button>
           </form>
         </div>
       </header>
+
+      <div class="guest-banner" id="guest-banner" hidden>
+        <span id="guest-banner-msg"></span>
+      </div>
 
       <section id="onboarding-view" hidden>
         <div class="onboarding-shell">
@@ -63,147 +84,163 @@
         <nav class="track-switcher" id="track-switcher" aria-label="Track"></nav>
         <div class="add-topic-popover" id="add-topic-popover" hidden></div>
 
-      <section id="challenge-view">
+        <section id="challenge-view">
 
-        <div class="mascot-row">
-          <svg class="mascot-flame" width="52" height="52" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--orange)"/>
-            <path d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z" fill="var(--yellow)"/>
-            <circle cx="10" cy="13.5" r="1" fill="var(--bg)"/>
-            <circle cx="13.6" cy="13.5" r="1" fill="var(--bg)"/>
-          </svg>
-          <div class="mascot-bubble" id="mascot-msg">Loading today's challenge…</div>
-        </div>
-
-        <div class="difficulty-row">
-          <span id="challenge-badge" class="badge">-</span>
-          <span id="challenge-late" class="badge badge-late" hidden>catching up</span>
-          <span id="challenge-bonus" class="badge badge-bonus" hidden>bonus</span>
-          <button id="reset-day-btn" class="reset-day-btn" title="Reset today's progress and try again">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>
-            Reset day
-          </button>
-        </div>
-
-        <nav class="node-nav" id="tabs">
-          <button class="node-btn" data-tab="quiz">
-            <span class="node-circle" id="node-quiz">
-              <span class="node-icon">?</span>
-              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-            <span class="node-label">Quiz</span>
-          </button>
-          <button class="node-btn" data-tab="code">
-            <span class="node-circle" id="node-code">
-              <span class="node-icon" style="font-family:var(--font-mono); font-size:1.1rem;">&lt;/&gt;</span>
-              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-            <span class="node-label">Code</span>
-          </button>
-          <button class="node-btn" data-tab="concept">
-            <span class="node-circle" id="node-concept">
-              <svg class="node-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.8.6 1.3V17h5.8v-1.8c0-.5.2-1 .6-1.3A6 6 0 0 0 12 3z" fill="var(--bg)"/><rect x="9.5" y="19" width="5" height="2.2" rx="1" fill="var(--bg)"/></svg>
-              <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </span>
-            <span class="node-label">Concept</span>
-          </button>
-        </nav>
-
-        <section class="blob-panel" id="panel-quiz">
-          <div id="quiz-questions"></div>
-          <button id="quiz-submit" class="btn-chunky btn-teal">Check Answers</button>
-          <div id="quiz-result" class="panel-result" hidden></div>
-        </section>
-
-        <section class="blob-panel" id="panel-code" hidden>
-          <h2 id="code-title" style="margin:0 0 8px; font-family:var(--font-display); font-size:1.15rem;"></h2>
-          <p id="code-description" class="prose"></p>
-          <p class="hint" id="code-tests"></p>
-          <div id="code-docs" class="docs-row" hidden>
-            <span class="docs-label">DOCS</span>
-            <span id="code-docs-links"></span>
+          <div class="mascot-row">
+            <svg class="mascot-flame" width="70" height="52" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z"
+                fill="var(--orange)" />
+              <path
+                d="M12 7.5C12 7.5 9.3 11.4 9.3 14.2C9.3 16.4 10.5 18 12 18C13.5 18 14.7 16.4 14.7 14.2C14.7 11.4 12 7.5 12 7.5Z"
+                fill="var(--yellow)" />
+              <circle cx="10" cy="13.5" r="1" fill="var(--bg)" />
+              <circle cx="13.6" cy="13.5" r="1" fill="var(--bg)" />
+            </svg>
+            <div class="mascot-bubble" id="mascot-msg">Loading today's challenge…</div>
           </div>
 
-          <label class="block-mode-toggle">
-            <input type="checkbox" id="block-mode-toggle">
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            <span class="toggle-label">Block mode - assemble the code from pieces instead of typing</span>
-          </label>
-
-          <textarea id="code-editor" spellcheck="false"></textarea>
-
-          <div id="code-blocks" class="blocks-wrap" hidden>
-            <div class="blocks-assembly" id="blocks-assembly">
-              <p class="blocks-empty-hint" id="blocks-empty-hint">Tap pieces below to add them here, in order.</p>
-            </div>
-            <div class="blocks-bank" id="blocks-bank"></div>
-            <button id="blocks-clear" class="btn-chunky btn-ghost blocks-clear-btn">Clear assembly</button>
+          <div class="difficulty-row">
+            <span id="challenge-badge" class="badge">-</span>
+            <span id="challenge-late" class="badge badge-late" hidden>catching up</span>
+            <span id="challenge-bonus" class="badge badge-bonus" hidden>bonus</span>
+            <button id="reset-day-btn" class="reset-day-btn" title="Reset today's progress and try again">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Reset day
+            </button>
           </div>
 
-          <button id="code-submit" class="btn-chunky btn-teal code-submit-btn">Compile &amp; Run</button>
-          <pre id="code-result" class="panel-result" hidden></pre>
-          <div id="code-reference" class="model-answer-box" hidden></div>
-        </section>
+          <nav class="node-nav" id="tabs">
+            <button class="node-btn" data-tab="quiz">
+              <span class="node-circle" id="node-quiz">
+                <span class="node-icon">?</span>
+                <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span class="node-label">Quiz</span>
+            </button>
+            <button class="node-btn" data-tab="code-review">
+              <span class="node-circle" id="node-code-review">
+                <svg class="node-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="var(--bg)" stroke-width="2.4" />
+                  <line x1="15.3" y1="15.3" x2="21" y2="21" stroke="var(--bg)" stroke-width="2.6"
+                    stroke-linecap="round" />
+                </svg>
+                <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span class="node-label">Code Review</span>
+            </button>
+            <button class="node-btn" data-tab="concept">
+              <span class="node-circle" id="node-concept">
+                <svg class="node-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.8.6 1.3V17h5.8v-1.8c0-.5.2-1 .6-1.3A6 6 0 0 0 12 3z"
+                    fill="var(--bg)" />
+                  <rect x="9.5" y="19" width="5" height="2.2" rx="1" fill="var(--bg)" />
+                </svg>
+                <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span class="node-label">Concept</span>
+            </button>
+          </nav>
 
-        <section class="blob-panel" id="panel-concept" hidden>
-          <p id="concept-prompt" class="prose"></p>
-          <textarea id="concept-notes" placeholder="Jot your own answer here first - AI grading (if enabled) reads this."></textarea>
+          <section class="blob-panel" id="panel-quiz">
+            <div id="quiz-questions"></div>
+            <div id="quiz-result" class="panel-result" hidden></div>
+          </section>
 
-          <div class="btn-row">
-            <button id="concept-ai-grade" class="btn-chunky btn-violet" hidden>AI-grade my answer</button>
-            <button id="concept-reveal" class="btn-chunky btn-ghost">Reveal Model Answer</button>
-          </div>
+          <section class="blob-panel" id="panel-code-review" hidden>
+            <h2 id="code-review-title" style="margin:0 0 8px; font-family:var(--font-display); font-size:1.15rem;">
+            </h2>
+            <p class="hint" id="code-review-hint">Click the line(s) with a bug or smell (1-3), then tap a reason below to match it.</p>
+            <div id="code-review-snippet" class="code-snippet cr-lines"></div>
 
-          <div id="concept-ai-feedback" class="ai-feedback" hidden>
-            <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true" style="flex:0 0 auto;"><path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z" fill="var(--violet)"/></svg>
-            <div class="ai-bubble" id="concept-ai-feedback-text"></div>
-          </div>
+            <p class="hint" id="code-review-bank-hint">Answer bank - tap a flagged line above, then tap its reason:</p>
+            <div id="code-review-reason-bank" class="reason-bank"></div>
 
-          <div id="concept-answer" class="model-answer-box" hidden></div>
-
-          <div id="concept-grade" hidden>
-            <p class="hint">Be honest - did you get the core idea?</p>
             <div class="btn-row">
-              <button id="concept-got-it" class="btn-chunky btn-green">Got it</button>
-              <button id="concept-missed" class="btn-chunky btn-ghost">Missed it</button>
+              <button id="code-review-submit" class="btn-chunky btn-green">Submit review</button>
+            </div>
+
+            <div id="code-review-result" class="panel-result" hidden></div>
+          </section>
+
+          <section class="blob-panel" id="panel-concept" hidden>
+            <p id="concept-prompt" class="prose"></p>
+            <textarea id="concept-notes"
+              placeholder="Jot your own answer here first - AI grading (if enabled) reads this."></textarea>
+
+            <div class="btn-row">
+              <button id="concept-ai-grade" class="btn-chunky btn-violet" hidden>AI-grade my answer</button>
+              <button id="concept-reveal" class="btn-chunky btn-ghost">Reveal Model Answer</button>
+            </div>
+
+            <div id="concept-ai-feedback" class="ai-feedback" hidden>
+              <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true" style="flex:0 0 auto;">
+                <path d="M12 2C12 2 6.5 8.2 6.5 13.2C6.5 17 9 20 12 20C15 20 17.5 17 17.5 13.2C17.5 8.2 12 2 12 2Z"
+                  fill="var(--violet)" />
+              </svg>
+              <div class="ai-bubble" id="concept-ai-feedback-text"></div>
+            </div>
+
+            <div id="concept-answer" class="model-answer-box" hidden></div>
+
+            <div id="concept-grade" hidden>
+              <p class="hint">Be honest - did you get the core idea?</p>
+              <div class="btn-row">
+                <button id="concept-got-it" class="btn-chunky btn-green">Got it</button>
+                <button id="concept-missed" class="btn-chunky btn-ghost">Missed it</button>
+              </div>
+            </div>
+
+            <div id="concept-result" class="panel-result" hidden></div>
+          </section>
+
+        </section>
+
+        <section id="history-view" hidden>
+          <div class="history-head">
+            <h1>History</h1>
+            <p class="hint">Catch up on missed days anytime, get even better today!</p>
+            <div class="view-toggle">
+              <button id="history-view-calendar" class="view-toggle-btn active">Calendar</button>
+              <button id="history-view-list" class="view-toggle-btn">List</button>
             </div>
           </div>
 
-          <div id="concept-result" class="panel-result" hidden></div>
+          <div class="badges-row" id="badges-row"></div>
+
+          <div id="calendar-view">
+            <div class="calendar-nav">
+              <button id="cal-prev" class="btn-chunky btn-ghost cal-nav-btn"
+                aria-label="Previous month">&lsaquo;</button>
+              <div class="calendar-month-label" id="cal-month-label"></div>
+              <button id="cal-next" class="btn-chunky btn-ghost cal-nav-btn" aria-label="Next month">&rsaquo;</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+            <div class="calendar-legend">
+              <span><i class="legend-dot done"></i> done</span>
+              <span><i class="legend-dot late"></i> late</span>
+              <span><i class="legend-dot bonus"></i> bonus</span>
+              <span><i class="legend-dot open"></i> open</span>
+            </div>
+          </div>
+
+          <div id="history-list" hidden></div>
         </section>
-
-      </section>
-
-      <section id="history-view" hidden>
-        <div class="history-head">
-          <h1>Your Trail</h1>
-          <p class="hint">Missed days stay open - jump to any day and catch up any time.</p>
-          <div class="view-toggle">
-            <button id="history-view-calendar" class="view-toggle-btn active">Calendar</button>
-            <button id="history-view-list" class="view-toggle-btn">List</button>
-          </div>
-        </div>
-
-        <div id="calendar-view">
-          <div class="calendar-nav">
-            <button id="cal-prev" class="btn-chunky btn-ghost cal-nav-btn" aria-label="Previous month">&lsaquo;</button>
-            <div class="calendar-month-label" id="cal-month-label"></div>
-            <button id="cal-next" class="btn-chunky btn-ghost cal-nav-btn" aria-label="Next month">&rsaquo;</button>
-          </div>
-          <div class="calendar-weekdays">
-            <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
-          </div>
-          <div class="calendar-grid" id="calendar-grid"></div>
-          <div class="calendar-legend">
-            <span><i class="legend-dot done"></i> done</span>
-            <span><i class="legend-dot late"></i> late</span>
-            <span><i class="legend-dot bonus"></i> bonus</span>
-            <span><i class="legend-dot open"></i> open</span>
-          </div>
-        </div>
-
-        <div id="history-list" hidden></div>
-      </section>
 
       </div>
 
@@ -212,4 +249,5 @@
 
   <script defer src="static/app.js"></script>
 </body>
+
 </html>

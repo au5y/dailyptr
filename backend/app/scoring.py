@@ -13,8 +13,9 @@ def points_for_quiz(correct_count: int, difficulty: str) -> float:
     return round(correct_count * config.BASE_POINTS_PER_QUIZ_QUESTION * multiplier(difficulty), 1)
 
 
-def points_for_coding(difficulty: str) -> float:
-    return round(config.BASE_POINTS_PER_CODING_PROBLEM * multiplier(difficulty), 1)
+def points_for_code_review(correct_count: int, total: int, difficulty: str) -> float:
+    fraction = correct_count / total if total else 0.0
+    return round(config.BASE_POINTS_PER_CODE_REVIEW * fraction * multiplier(difficulty), 1)
 
 
 def points_for_concept(difficulty: str) -> float:
@@ -43,30 +44,9 @@ def is_late(day: models.Day, start_date: date_type) -> bool:
     return day.completed_at.date() > day.date
 
 
-def maybe_award_completion_bonus(day: models.Day) -> float:
-    """Call right after a component completes. If this finishes the day AND it's
-    still that day's date, award the on-time bonus and stamp completed_at."""
-    bonus = 0.0
-    if day.fully_completed and day.completed_at is None:
-        day.completed_at = datetime.utcnow()
-        if day.date == date_type.today():
-            bonus = on_time_bonus(day.difficulty)
-            day.points_earned += bonus
-    return bonus
-
-
-def compute_stats(db: Session, user: models.User, track: str = config.DEFAULT_TRACK, start_date: date_type | None = None) -> dict:
-    if start_date is None:
-        start_date = user.created_at.date()
-    days = db.query(models.Day).filter(
-        models.Day.user_id == user.id, models.Day.track == track
-    ).order_by(models.Day.date).all()
-    completed_dates = {d.date for d in days if d.fully_completed}
-    total_points = sum(d.points_earned for d in days)
-    days_completed = len(completed_dates)
+def _streaks(completed_dates: set[date_type]) -> tuple[int, int]:
+    """(current_streak, longest_streak) for a set of fully-completed dates."""
     today = date_type.today()
-    days_missed_open = sum(1 for d in days if d.date >= start_date and d.date < today and not d.fully_completed)
-
     # current streak: walk backward from today (or yesterday if today isn't done
     # yet, so still-in-progress "today" doesn't zero out an active streak)
     current_streak = 0
@@ -87,10 +67,85 @@ def compute_stats(db: Session, user: models.User, track: str = config.DEFAULT_TR
         longest_streak = max(longest_streak, run)
         prev = d
 
+    return current_streak, longest_streak
+
+
+def award_new_milestones(db: Session, user: models.User, track: str, current_streak: int) -> tuple[list[int], float]:
+    """Awards every streak milestone (config.STREAK_MILESTONES) newly reached
+    by current_streak that this (user, track) hasn't already been awarded -
+    each one only ever fires once, even across streak resets. Returns
+    (newly_awarded milestones in ascending order, their total bonus points)."""
+    already = {
+        m for (m,) in db.query(models.MilestoneAward.milestone).filter(
+            models.MilestoneAward.user_id == user.id, models.MilestoneAward.track == track,
+        ).all()
+    }
+    newly_awarded = []
+    total_bonus = 0.0
+    for milestone in config.STREAK_MILESTONES:
+        if milestone > current_streak or milestone in already:
+            continue
+        bonus = config.STREAK_MILESTONE_BONUS[milestone]
+        db.add(models.MilestoneAward(user_id=user.id, track=track, milestone=milestone, points_awarded=bonus))
+        newly_awarded.append(milestone)
+        total_bonus += bonus
+    return newly_awarded, total_bonus
+
+
+def maybe_award_completion_bonus(db: Session, user: models.User, day: models.Day) -> tuple[float, list[int]]:
+    """Call right after a component completes. If this finishes the day AND it's
+    still that day's date, award the on-time bonus and stamp completed_at.
+    Either way (on-time or catching up a late day), also checks whether this
+    completion newly extended the current streak into a milestone - see
+    award_new_milestones. Returns (bonus points, newly-hit milestones)."""
+    bonus = 0.0
+    milestones_hit: list[int] = []
+    if day.fully_completed and day.completed_at is None:
+        day.completed_at = datetime.utcnow()
+        if day.date == date_type.today():
+            bonus = on_time_bonus(day.difficulty)
+            day.points_earned += bonus
+
+        completed_dates = _completed_dates(db, user, day.track)
+        completed_dates.add(day.date)
+        current_streak, _ = _streaks(completed_dates)
+        milestones_hit, milestone_bonus = award_new_milestones(db, user, day.track, current_streak)
+        if milestone_bonus:
+            day.points_earned += milestone_bonus
+            bonus += milestone_bonus
+    return bonus, milestones_hit
+
+
+def _completed_dates(db: Session, user: models.User, track: str) -> set[date_type]:
+    days = db.query(models.Day).filter(models.Day.user_id == user.id, models.Day.track == track).all()
+    return {d.date for d in days if d.fully_completed}
+
+
+def compute_stats(db: Session, user: models.User, track: str = config.DEFAULT_TRACK, start_date: date_type | None = None) -> dict:
+    if start_date is None:
+        start_date = user.created_at.date()
+    days = db.query(models.Day).filter(
+        models.Day.user_id == user.id, models.Day.track == track
+    ).order_by(models.Day.date).all()
+    completed_dates = {d.date for d in days if d.fully_completed}
+    total_points = sum(d.points_earned for d in days)
+    days_completed = len(completed_dates)
+    today = date_type.today()
+    days_missed_open = sum(1 for d in days if d.date >= start_date and d.date < today and not d.fully_completed)
+
+    current_streak, longest_streak = _streaks(completed_dates)
+
+    badges = sorted(
+        m for (m,) in db.query(models.MilestoneAward.milestone).filter(
+            models.MilestoneAward.user_id == user.id, models.MilestoneAward.track == track,
+        ).all()
+    )
+
     return {
         "total_points": round(total_points, 1),
         "current_streak": current_streak,
         "longest_streak": longest_streak,
         "days_completed": days_completed,
         "days_missed_open": days_missed_open,
+        "badges": badges,
     }
