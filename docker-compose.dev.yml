@@ -1,0 +1,48 @@
+# Local-only dev overlay - adds a real Postgres service and points `web` at
+# it instead of SQLite. Never applied on its own; always layered on top of
+# the base compose file with `-f`, so au5y-serv's plain `docker compose up`
+# (no -f flags - see .claude/skills/deploy) is completely unaffected by this
+# file existing in the repo.
+#
+# Usage (from the repo root):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# This is a practice environment for the SQLite -> Postgres + Alembic +
+# repository-layer project in PLAN.md - it intentionally does NOT set up
+# Alembic itself. The app's current `Base.metadata.create_all` bootstrap
+# (see backend/app/database.py: init_db) will still create the schema fresh
+# against this Postgres instance on first boot, same as it does for SQLite -
+# that's the starting point the Alembic work replaces.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dailyptr-postgres-dev
+    environment:
+      - POSTGRES_USER=dailyptr
+      - POSTGRES_PASSWORD=dailyptr_dev_only
+      - POSTGRES_DB=dailyptr
+    ports:
+      # Exposed on localhost so `psql`/Alembic/etc. from outside the
+      # container can reach it directly while you're working on this.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dailyptr_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dailyptr -d dailyptr"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://dailyptr:dailyptr_dev_only@postgres:5432/dailyptr
+    depends_on:
+      postgres:
+        condition: service_healthy
+      sandbox-image:
+        condition: service_completed_successfully
+
+volumes:
+  dailyptr_pg_dev:
