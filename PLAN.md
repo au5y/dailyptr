@@ -438,7 +438,7 @@ Two real bugs worth remembering (same spirit as Phase 1/2's lists):
   bind-mounted frontend updates live, which made this confusing to spot -
   new JS hitting old API responses, not an obviously-stale deploy).
 
-## Phase 8 - Guest mode: local-only until sign-in (backend half done, 2026-08-20)
+## Phase 8 - Guest mode: local-only until sign-in (done, 2026-08-20)
 
 **Update, 2026-08-20 - backend half built and tested; frontend deferred.**
 Two open questions below got decided this session: (1) guest identity stays
@@ -473,13 +473,59 @@ milestone replay comes out identical to live day-by-day play. All net-new
 green (32 tests) - the extractions were verified to be zero-behavior-change
 before being reused a second/third time.
 
-**Not done yet, by explicit scope decision**: the frontend `Progress`-module
-localStorage rewrite (`frontend/app.js`) - the seam design, localStorage
-schema, client-computed streak/history, and the actual claim-on-sign-in
-trigger are all designed (see this session's planning) but none of it is
-wired into the UI. Guests today still use the old DB-backed path
-unchanged; the new `/api/guest/*`/`/api/claim` endpoints exist and are
-tested but are not yet reachable from the app itself.
+**Update, 2026-08-20 (same day) - frontend wired in, feature complete.**
+`frontend/app.js` gained a `Progress` module (an IIFE-scoped closure) that's
+the single seam between guest and signed-in - every render/handler function
+now calls only `Progress.*` and addresses a day by `(track, date)` rather
+than `current.day.id` (which doesn't exist for a guest's virtual,
+unpersisted day). Real accounts still hit the id-addressed endpoints
+underneath (`Progress` keeps a small internal `track|date -> Day id` cache
+populated by `getChallenge`, never exposed outside the module); guests hit
+`/api/guest/*` and read/write a `dailyptr-guest-progress` localStorage
+object (schema: `{onboarded, subscriptions: {track: subscribed_at}, days:
+{"track|date": {...progress fields, plus raw quiz_answers/code_review_matches/
+critical_reasoning_matches/concept_self_rating so a later claim can regrade
+from scratch}}}`). Client-side ports of `scoring._streaks`/`is_late`/
+`is_bonus`/the on-time completion bonus drive local stats/history - badges
+stay suppressed for guests (`getStats()` always returns `badges: []`,
+per the earlier decision that a locally-shown badge could fail to reproduce
+post-claim). `POST /api/onboarding`/`/api/subscribe` are now guest-unused;
+guest onboarding/track-adding writes straight to localStorage. `init()`
+calls `Progress.maybeClaim()` once, right after determining a session is
+real (not guest) and before the onboarded/track checks below it depend on
+whatever claim just created.
+
+**One real bug caught and fixed in this pass** (worth remembering, same
+spirit as earlier sessions' bug lists): `POST /api/claim` created real
+`TrackSubscription` rows but never set `User.onboarded = True` - a
+brand-new account's first real sign-in after guest play would create
+subscriptions via claim, then get bounced straight back to the onboarding
+screen on next boot (since `Progress.isOnboarded` for a real account just
+reads `me.onboarded`, and nothing had ever set it). Fixed in
+`routers/claim.py`: if any subscriptions were newly claimed and the account
+wasn't already onboarded, mark it onboarded too - test coverage added
+(`test_claim_marks_account_onboarded`). Also hit the same detached-session
+gotcha `routers/challenges.py`'s onboarding endpoint already has a comment
+about: `user` from `get_current_user` is bound to `AuthMiddleware`'s own
+(already-closed) session, so mutating it directly no-ops - has to be
+`db.get(models.User, user.id)` first.
+
+**Decided this session, not built**: no stateless AI-grade endpoint for
+guests - the "AI-grade my answer" button is simply hidden when `isGuest`
+(concept AI grading needs a `ConceptCheck` lookup that's cheap to add
+statelessly, but wasn't judged worth it for an optional, already
+config-gated feature). Guests get the plain reveal-and-self-rate flow.
+
+Verified live (no browser automation tool was available in this
+environment, so driven the same way the Code Review/Critical Reasoning
+features were - real HTTP requests against the actual running server,
+mirroring exactly what `Progress` sends): a guest completing a full
+`cpp_core` day (quiz + code review + concept) via `/api/guest/*` creates
+**zero** `Day` rows and computes the same point total (150 for a medium-
+difficulty full day) a signed-in account gets for the identical
+performance - confirms the client-side quiz-point/on-time-bonus formulas
+match the server's exactly. `pytest tests/` green throughout (33 tests,
+including the new claim-onboarding regression test).
 
 Decided 2026-08-19: guest ("Play offline") accounts currently create a real
 `User` row and persist every `Day`/submission to Postgres exactly like a

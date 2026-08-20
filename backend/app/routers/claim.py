@@ -38,6 +38,19 @@ def claim_guest_progress(body: schemas.ClaimIn, db: Session = Depends(get_db), u
         db.commit()
         claimed_subscriptions.append(sub.track)
 
+    # A guest who picked topics and played is functionally "onboarded" -
+    # without this, a first-time Google sign-in after guest play would land
+    # back on the onboarding screen despite having just claimed real
+    # progress, since User.onboarded is a separate flag /api/onboarding
+    # normally sets and nothing else here touches it.
+    if claimed_subscriptions and not user.onboarded:
+        # `user` came from AuthMiddleware's own (already-closed) session, so
+        # it's detached from `db` - mutate a copy `db` actually tracks (same
+        # pattern as routers/challenges.py's onboarding endpoint).
+        db_user = db.get(models.User, user.id)
+        db_user.onboarded = True
+        db.commit()
+
     by_track: dict[str, list[schemas.ClaimDayIn]] = {}
     for day_in in body.days:
         by_track.setdefault(day_in.track, []).append(day_in)

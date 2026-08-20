@@ -47,6 +47,22 @@ def test_claim_replays_a_full_local_history_with_streak_and_milestone(client):
     assert stats["badges"] == [3]
 
 
+def test_claim_marks_account_onboarded(client):
+    # A brand new account (never called /api/onboarding) claiming a guest's
+    # topic picks should end up onboarded - otherwise a first-time sign-in
+    # after guest play would bounce back to the onboarding screen despite
+    # having just claimed real progress.
+    assert client.get("/api/me").json()["onboarded"] is False
+    d = date(2024, 6, 5)
+
+    resp = client.post("/api/claim", json={
+        "subscriptions": [{"track": "cpp_core", "subscribed_at": d.isoformat()}],
+        "days": [],
+    })
+    assert resp.status_code == 200, resp.text
+    assert client.get("/api/me").json()["onboarded"] is True
+
+
 def test_claim_skips_days_and_subscription_the_account_already_has(client):
     d = date(2024, 6, 1)  # untouched by other tests
     # play this day live first, so the account already has it

@@ -119,6 +119,341 @@ function setMascot(text) {
   document.getElementById("mascot-msg").textContent = text;
 }
 
+// pad2 is defined further down (function declarations are hoisted, so it's
+// available here too) alongside dateKey(y, m, d) - dateKeyFromDate is the
+// same idea but takes a Date object directly, which Progress needs more often.
+function dateKeyFromDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+// A guest's "today" is computed in the browser's own timezone, unlike a
+// signed-in day which always trusts the server's date.today() uncritically -
+// if the two disagree near midnight a guest could see a different day's
+// content than a signed-in user would at that exact moment. Not new: this
+// app has never reconciled timezones anywhere, this is just the first place
+// the client makes its own "what day is it" call instead of the server.
+function todayLocalISO() { return dateKeyFromDate(new Date()); }
+function round1(x) { return Math.round(x * 10) / 10; }
+
+// ---------- Progress: the guest-vs-signed-in seam ----------
+// The single place isGuest gets branched on. Every render/handler function
+// below calls only Progress.* and addresses days by (track, date) - never
+// current.day.id, which doesn't exist for a guest's virtual (unpersisted)
+// day. For signed-in accounts Progress is a thin pass-through to the real
+// API (addressed internally via a small track|date -> Day id cache, since
+// the real endpoints are id-addressed); for guests it hits the stateless
+// /api/guest/* endpoints and keeps all progress in localStorage, submitting
+// it via /api/claim once the guest signs in for real (see maybeClaim).
+const Progress = (() => {
+  const STORAGE_KEY = "dailyptr-guest-progress";
+  const dayIds = {}; // "track|date" -> real Day id (signed-in accounts only)
+
+  function dayKey(track, date) { return `${track}|${date}`; }
+
+  function defaultState() {
+    return { version: 1, onboarded: false, subscriptions: {}, days: {} };
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? { ...defaultState(), ...JSON.parse(raw) } : defaultState();
+    } catch {
+      return defaultState();
+    }
+  }
+  function save(state) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function reviewKindFor(track) {
+    const t = tracks.find((tt) => tt.id === track);
+    return t ? t.review_kind : "code";
+  }
+  function multiplierFor(difficulty) {
+    return appConfig.scoring.difficulty_multipliers[difficulty];
+  }
+  function isFullyCompleted(record, reviewKind) {
+    const reviewDone = reviewKind === "code" ? record.code_review_completed : record.critical_reasoning_completed;
+    return record.quiz_completed && reviewDone && record.concept_completed;
+  }
+  function isBonus(record, subscribedAt) {
+    return !!subscribedAt && record.date < subscribedAt;
+  }
+  function isLate(record, fullyCompleted, subscribedAt) {
+    if (isBonus(record, subscribedAt)) return false;
+    if (!record.completed_at) return record.date < todayLocalISO() && !fullyCompleted;
+    return record.completed_at.slice(0, 10) > record.date;
+  }
+  // Mirrors scoring.maybe_award_completion_bonus's on-time-bonus half only -
+  // milestone/badge checking needs persisted streak history to check
+  // against, which a guest doesn't have, so badges stay suppressed
+  // client-side (getStats always returns badges: []) until a real sign-in
+  // claims the history server-side.
+  function maybeCompleteDay(record, track) {
+    const fullyCompleted = isFullyCompleted(record, reviewKindFor(track));
+    if (fullyCompleted && !record.completed_at) {
+      record.completed_at = new Date().toISOString();
+      if (record.date === todayLocalISO()) {
+        record.points_earned += round1(appConfig.scoring.on_time_bonus * multiplierFor(record.difficulty));
+      }
+    }
+  }
+  function addDays(dateStr, n) {
+    const d = new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    return dateKeyFromDate(d);
+  }
+  // Port of scoring._streaks - same two-pass algorithm (walk back from
+  // today for the current streak, scan sorted dates for the longest run).
+  function streaks(completedDates) {
+    const today = todayLocalISO();
+    let current = 0;
+    let cursor = completedDates.has(today) ? today : addDays(today, -1);
+    while (completedDates.has(cursor)) {
+      current++;
+      cursor = addDays(cursor, -1);
+    }
+    const sorted = Array.from(completedDates).sort();
+    let longest = 0, run = 0, prev = null;
+    for (const d of sorted) {
+      run = (prev !== null && d === addDays(prev, 1)) ? run + 1 : 1;
+      longest = Math.max(longest, run);
+      prev = d;
+    }
+    return { current, longest };
+  }
+
+  function ensureDayRecord(state, track, date, content) {
+    const key = dayKey(track, date);
+    if (!state.days[key]) {
+      state.days[key] = {
+        track, date,
+        weekday: content.day.weekday, difficulty: content.day.difficulty,
+        quiz_question_ids: content.quiz.map((q) => q.id),
+        quiz_answers: {}, quiz_correct_indices: {},
+        quiz_completed: false, quiz_correct: 0, quiz_total: 0,
+        code_review_matches: null, code_review_completed: false, code_review_correct: 0, code_review_total: 0,
+        critical_reasoning_matches: null, critical_reasoning_completed: false, critical_reasoning_correct: 0, critical_reasoning_total: 0,
+        concept_self_rating: null, concept_completed: false,
+        points_earned: 0, completed_at: null,
+      };
+    }
+    return state.days[key];
+  }
+
+  function dayOutFromRecord(record, track) {
+    const state = load();
+    const subscribedAt = state.subscriptions[track] || null;
+    const reviewKind = reviewKindFor(track);
+    const fullyCompleted = isFullyCompleted(record, reviewKind);
+    return {
+      date: record.date, track, weekday: record.weekday, difficulty: record.difficulty,
+      quiz_completed: record.quiz_completed, quiz_correct: record.quiz_correct, quiz_total: record.quiz_total,
+      code_review_completed: record.code_review_completed, code_review_correct: record.code_review_correct, code_review_total: record.code_review_total,
+      critical_reasoning_completed: record.critical_reasoning_completed, critical_reasoning_correct: record.critical_reasoning_correct, critical_reasoning_total: record.critical_reasoning_total,
+      concept_completed: record.concept_completed, concept_self_rating: record.concept_self_rating,
+      points_earned: round1(record.points_earned), completed_at: record.completed_at,
+      fully_completed: fullyCompleted,
+      is_late: isLate(record, fullyCompleted, subscribedAt),
+      is_bonus: isBonus(record, subscribedAt),
+    };
+  }
+
+  async function getChallenge(track, date) {
+    if (!isGuest) {
+      const challenge = await getJSON(`${API}/day/${date}?track=${encodeURIComponent(track)}`);
+      dayIds[dayKey(track, date)] = challenge.day.id;
+      return challenge;
+    }
+    const content = await getJSON(`${API}/guest/challenge?date=${date}&track=${encodeURIComponent(track)}`);
+    const state = load();
+    const record = ensureDayRecord(state, track, date, content);
+    save(state);
+    return {
+      day: dayOutFromRecord(record, track),
+      quiz: content.quiz,
+      code_review: content.code_review,
+      critical_reasoning: content.critical_reasoning,
+      concept: content.concept,
+    };
+  }
+
+  async function answerQuiz(track, date, questionId, choiceIndex) {
+    if (!isGuest) {
+      const dayId = dayIds[dayKey(track, date)];
+      return postJSON(`${API}/quiz/${dayId}/question/${questionId}/answer`, { choice_index: choiceIndex });
+    }
+    const result = await postJSON(`${API}/guest/quiz/answer`, { date, track, question_id: questionId, choice_index: choiceIndex });
+    const state = load();
+    const record = state.days[dayKey(track, date)];
+    record.quiz_answers[String(questionId)] = choiceIndex;
+    record.quiz_correct_indices[String(questionId)] = result.correct_index;
+
+    let pointsAwarded = 0;
+    const allAnswered = record.quiz_question_ids.every((qid) => String(qid) in record.quiz_answers);
+    if (allAnswered && !record.quiz_completed) {
+      const correct = record.quiz_question_ids.filter(
+        (qid) => record.quiz_answers[String(qid)] === record.quiz_correct_indices[String(qid)]
+      ).length;
+      record.quiz_completed = true;
+      record.quiz_correct = correct;
+      record.quiz_total = record.quiz_question_ids.length;
+      pointsAwarded = round1(appConfig.scoring.base_quiz * correct * multiplierFor(record.difficulty));
+      record.points_earned += pointsAwarded;
+      maybeCompleteDay(record, track);
+    }
+    save(state);
+
+    return {
+      correct: result.correct,
+      correct_index: result.correct_index,
+      explanation: result.explanation,
+      quiz_completed: record.quiz_completed,
+      quiz_correct: record.quiz_correct,
+      quiz_total: record.quiz_total,
+      points_awarded: pointsAwarded,
+      milestones_hit: [],
+    };
+  }
+
+  async function submitReview(track, date, kind, matches) {
+    const cfg = REVIEW_KIND_CONFIG[kind];
+    if (!isGuest) {
+      const dayId = dayIds[dayKey(track, date)];
+      return postJSON(`${API}/${cfg.endpoint}/${dayId}/submit`, { matches });
+    }
+    const result = await postJSON(`${API}/guest/${cfg.endpoint}/check`, { date, track, matches });
+    const state = load();
+    const record = state.days[dayKey(track, date)];
+    record[cfg.matchesField] = matches;
+    record[cfg.completedField] = true;
+    record[cfg.correctField] = result.correct_count;
+    record[cfg.totalField] = result.total;
+    record.points_earned += result.points_awarded;
+    maybeCompleteDay(record, track);
+    save(state);
+    return { ...result, milestones_hit: [] };
+  }
+
+  async function submitConcept(track, date, selfRating) {
+    if (!isGuest) {
+      const dayId = dayIds[dayKey(track, date)];
+      return postJSON(`${API}/concept/${dayId}/submit`, { self_rating_correct: selfRating });
+    }
+    const result = await postJSON(`${API}/guest/concept/score`, { date, track, self_rating_correct: selfRating });
+    const state = load();
+    const record = state.days[dayKey(track, date)];
+    if (!record.concept_completed) {
+      record.concept_self_rating = selfRating;
+      record.concept_completed = true;
+      record.points_earned += result.points_awarded;
+      maybeCompleteDay(record, track);
+    }
+    save(state);
+    return { model_answer: current.concept.model_answer, points_awarded: result.points_awarded, milestones_hit: [] };
+  }
+
+  async function resetDay(track, date) {
+    if (!isGuest) {
+      const dayId = dayIds[dayKey(track, date)];
+      return postJSON(`${API}/day/${dayId}/reset`, {});
+    }
+    const state = load();
+    delete state.days[dayKey(track, date)];
+    save(state);
+    return getChallenge(track, date);
+  }
+
+  async function getHistory(track) {
+    if (!isGuest) return getJSON(`${API}/history?track=${encodeURIComponent(track)}`);
+    const state = load();
+    return Object.values(state.days)
+      .filter((r) => r.track === track)
+      .map((r) => dayOutFromRecord(r, track))
+      .sort((a, b) => (a.date < b.date ? 1 : -1));
+  }
+
+  async function getStats(track) {
+    if (!isGuest) return getJSON(`${API}/stats?track=${encodeURIComponent(track)}`);
+    const state = load();
+    const subscribedAt = state.subscriptions[track] || null;
+    const records = Object.values(state.days).filter((r) => r.track === track);
+    const reviewKind = reviewKindFor(track);
+    const completedDates = new Set(records.filter((r) => isFullyCompleted(r, reviewKind)).map((r) => r.date));
+    const today = todayLocalISO();
+    const daysMissedOpen = records.filter(
+      (r) => subscribedAt && r.date >= subscribedAt && r.date < today && !isFullyCompleted(r, reviewKind)
+    ).length;
+    const { current: currentStreak, longest: longestStreak } = streaks(completedDates);
+    return {
+      total_points: round1(records.reduce((sum, r) => sum + r.points_earned, 0)),
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      days_completed: completedDates.size,
+      days_missed_open: daysMissedOpen,
+      badges: [],
+    };
+  }
+
+  function isOnboarded(meOnboarded) {
+    return isGuest ? load().onboarded : meOnboarded;
+  }
+
+  async function onboard(trackIds) {
+    if (!isGuest) return postJSON(`${API}/onboarding`, { tracks: trackIds });
+    const state = load();
+    const today = todayLocalISO();
+    trackIds.forEach((t) => { if (!state.subscriptions[t]) state.subscriptions[t] = today; });
+    state.onboarded = true;
+    save(state);
+    return getTracks(tracks);
+  }
+
+  async function subscribe(trackId) {
+    if (!isGuest) return postJSON(`${API}/subscribe`, { track: trackId });
+    const state = load();
+    if (!state.subscriptions[trackId]) state.subscriptions[trackId] = todayLocalISO();
+    save(state);
+    return getTracks(tracks);
+  }
+
+  function getTracks(rawTracks) {
+    if (!isGuest) return rawTracks;
+    const state = load();
+    return rawTracks.map((t) => ({ ...t, subscribed: t.id in state.subscriptions }));
+  }
+
+  // Called once at boot for a real (non-guest) session - replays whatever
+  // this browser accumulated as a guest into the now-signed-in account (see
+  // routers/claim.py). Idempotent and safe to retry: errors are left to
+  // propagate to init()'s own try/catch rather than swallowed here, so a
+  // failed claim just gets retried on next boot instead of silently losing
+  // the local data (only cleared from localStorage after a confirmed 200).
+  async function maybeClaim() {
+    const state = load();
+    const dayEntries = Object.values(state.days);
+    const subEntries = Object.entries(state.subscriptions);
+    if (dayEntries.length === 0 && subEntries.length === 0) return;
+
+    await postJSON(`${API}/claim`, {
+      subscriptions: subEntries.map(([track, subscribed_at]) => ({ track, subscribed_at })),
+      days: dayEntries.map((r) => ({
+        track: r.track,
+        date: r.date,
+        quiz_answers: r.quiz_answers,
+        code_review_matches: r.code_review_matches,
+        critical_reasoning_matches: r.critical_reasoning_matches,
+        concept_self_rating: r.concept_self_rating,
+      })),
+    });
+    localStorage.removeItem(STORAGE_KEY);
+  }
+
+  return {
+    isOnboarded, onboard, subscribe, getTracks,
+    getChallenge, answerQuiz, submitReview, submitConcept, resetDay,
+    getHistory, getStats,
+    maybeClaim,
+  };
+})();
+
 // ---------- onboarding (first-login topic selection) ----------
 let onboardingPicks = new Set();
 
@@ -151,7 +486,7 @@ document.getElementById("onboarding-start").addEventListener("click", async () =
   btn.disabled = true;
   btn.textContent = "Setting things up…";
   try {
-    tracks = await postJSON(`${API}/onboarding`, { tracks: Array.from(onboardingPicks) });
+    tracks = await Progress.onboard(Array.from(onboardingPicks));
     currentTrack = tracks.find((t) => t.subscribed)?.id || tracks[0]?.id;
     localStorage.setItem("cdr-track", currentTrack);
     document.getElementById("onboarding-view").hidden = true;
@@ -202,7 +537,7 @@ function renderAddTopicPopover(unsubscribed) {
     btn.textContent = t.name;
     btn.addEventListener("click", async () => {
       try {
-        tracks = await postJSON(`${API}/subscribe`, { track: t.id });
+        tracks = await Progress.subscribe(t.id);
         pop.hidden = true;
         await switchTrack(t.id);
       } catch (e) {
@@ -225,13 +560,13 @@ async function switchTrack(trackId) {
 
 async function loadToday() {
   await refreshStats();
-  const today = await getJSON(`${API}/today?track=${encodeURIComponent(currentTrack)}`);
+  const today = await Progress.getChallenge(currentTrack, todayLocalISO());
   renderChallenge(today);
 }
 
 // ---------- stats ----------
 async function refreshStats() {
-  const stats = await getJSON(`${API}/stats?track=${encodeURIComponent(currentTrack)}`);
+  const stats = await Progress.getStats(currentTrack);
   document.getElementById("stat-points").textContent = stats.total_points;
   document.getElementById("stat-streak").textContent = stats.current_streak;
   const missedWrap = document.getElementById("stat-missed-wrap");
@@ -285,7 +620,7 @@ function renderChallenge(challenge) {
 document.getElementById("reset-day-btn").addEventListener("click", async () => {
   if (!confirm("Reset today's progress? You'll lose the points earned today and can try the same quiz/code review/concept check again.")) return;
   try {
-    const fresh = await postJSON(`${API}/day/${current.day.id}/reset`, {});
+    const fresh = await Progress.resetDay(currentTrack, current.day.date);
     renderChallenge(fresh);
     await refreshStats();
     setMascot("Fresh start - let's go again.");
@@ -356,7 +691,7 @@ async function submitQuizAnswer(q, ci, div) {
   if (current.day.quiz_completed || [...choiceBtns].some((b) => b.disabled)) return;
   choiceBtns.forEach((b) => (b.disabled = true));
   try {
-    const result = await postJSON(`${API}/quiz/${current.day.id}/question/${q.id}/answer`, { choice_index: ci });
+    const result = await Progress.answerQuiz(currentTrack, current.day.date, q.id, ci);
     choiceBtns.forEach((b) => b.classList.remove("correct", "incorrect"));
     const chosenBtn = div.querySelector(`.choice[data-ci="${ci}"]`);
     chosenBtn.classList.add(result.correct ? "correct" : "incorrect");
@@ -409,6 +744,7 @@ const REVIEW_KIND_CONFIG = {
     elPrefix: "code-review",
     endpoint: "code-review",
     textField: "snippet",
+    matchesField: "code_review_matches",
     completedField: "code_review_completed",
     correctField: "code_review_correct",
     totalField: "code_review_total",
@@ -418,6 +754,7 @@ const REVIEW_KIND_CONFIG = {
     elPrefix: "critical-reasoning",
     endpoint: "critical-reasoning",
     textField: "passage",
+    matchesField: "critical_reasoning_matches",
     completedField: "critical_reasoning_completed",
     correctField: "critical_reasoning_correct",
     totalField: "critical_reasoning_total",
@@ -561,7 +898,7 @@ async function submitReview(kind) {
   }
   const matches = crState.flagged.filter((line) => crState.reasons[line]).map((line) => ({ line, reason: crState.reasons[line] }));
   try {
-    const result = await postJSON(`${API}/${cfg.endpoint}/${current.day.id}/submit`, { matches });
+    const result = await Progress.submitReview(currentTrack, current.day.date, kind, matches);
     current.day[cfg.completedField] = true;
     current.day[cfg.correctField] = result.correct_count;
     current.day[cfg.totalField] = result.total;
@@ -619,7 +956,10 @@ function renderConcept(concept, day) {
   gradeBox.hidden = true;
   resultBox.hidden = true;
   aiFeedbackBox.hidden = true;
-  aiGradeBtn.hidden = day.concept_completed || !appConfig.ai_grading_enabled;
+  // AI grading needs a Day-backed ConceptCheck lookup - there's no stateless
+  // guest equivalent (a deliberate scope decision, not an oversight), so
+  // guests get the plain reveal-and-self-rate flow only.
+  aiGradeBtn.hidden = day.concept_completed || !appConfig.ai_grading_enabled || isGuest;
   aiGradeBtn.disabled = false;
   aiGradeBtn.textContent = "AI-grade my answer";
   document.getElementById("concept-got-it").classList.remove("btn-suggested");
@@ -670,7 +1010,7 @@ document.getElementById("concept-ai-grade").addEventListener("click", async () =
 
 async function submitConceptGrade(gotIt) {
   try {
-    const result = await postJSON(`${API}/concept/${current.day.id}/submit`, { self_rating_correct: gotIt });
+    const result = await Progress.submitConcept(currentTrack, current.day.date, gotIt);
     document.getElementById("concept-grade").hidden = true;
     document.getElementById("concept-reveal").hidden = true;
     document.getElementById("concept-ai-grade").hidden = true;
@@ -692,7 +1032,7 @@ async function afterComponentComplete() {
   await refreshStats();
   // re-pull the day so completion flags / late flag / node checkmarks stay in sync
   const day = current.day;
-  const fresh = await getJSON(`${API}/day/${day.date}?track=${encodeURIComponent(currentTrack)}`);
+  const fresh = await Progress.getChallenge(currentTrack, day.date);
   renderNodes(fresh.day);
   current.day = fresh.day;
   showGuestReminder();
@@ -720,7 +1060,7 @@ function showView(name) {
 }
 
 async function openDay(dateStr) {
-  const challenge = await getJSON(`${API}/day/${dateStr}?track=${encodeURIComponent(currentTrack)}`);
+  const challenge = await Progress.getChallenge(currentTrack, dateStr);
   renderChallenge(challenge);
 }
 
@@ -838,7 +1178,7 @@ document.getElementById("history-toggle").addEventListener("click", async () => 
     showView("challenge-view");
     return;
   }
-  const days = await getJSON(`${API}/history?track=${encodeURIComponent(currentTrack)}`);
+  const days = await Progress.getHistory(currentTrack);
   historyByDate = {};
   days.forEach((d) => { historyByDate[d.date] = d; });
   renderHistoryList(days);
@@ -861,10 +1201,14 @@ document.getElementById("history-toggle").addEventListener("click", async () => 
     } else {
       document.getElementById("me-label").textContent = (me.name || me.email).split(" ")[0];
       document.getElementById("me-wrap").hidden = false;
+      // Replays whatever this browser accumulated as a guest into the now-
+      // signed-in account, before anything below reads onboarded/subscribed
+      // state that a successful claim may have just created.
+      await Progress.maybeClaim();
     }
-    tracks = await getJSON(`${API}/tracks`);
+    tracks = Progress.getTracks(await getJSON(`${API}/tracks`));
 
-    if (!me.onboarded) {
+    if (!Progress.isOnboarded(me.onboarded)) {
       document.getElementById("app-view").hidden = true;
       document.getElementById("onboarding-view").hidden = false;
       renderOnboardingTopics(tracks);
