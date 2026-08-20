@@ -8,9 +8,10 @@ Ground truth about this setup (verified 2026-08-19 - re-check if any of it seems
 - Local repo: `/home/austin/dailyptr`, remote `origin` = `git@github.com:au5y/dailyptr.git`.
 - Live host: `austin@au5y-serv` (SSH key auth already works, no password needed).
 - On au5y-serv the site is a plain `git clone` of the same repo at `/home/austin/docker/dailyptr` (sibling to au5y's other `docker/*` compose services, but not part of that outer repo). `git pull` there tracks `origin/main` directly - no rsync needed.
-- It's deployed via `docker compose` (`docker-compose.yml` in that directory) as container `dailyptr-web`, port 8000, plus a `dailyptr-sandbox-image-1` helper image that's built but never run standalone (used to spin up per-submission sandbox containers).
-- `data/app.db` (SQLite) and `data/sandbox-tmp/` are bind-mounted from the host and owned by root (created by the container running as root) - they persist across rebuilds/restarts as long as you don't delete them. **Never delete `data/` as part of a routine deploy** - that wipes the live database. Only do that if the user explicitly asks to reset/wipe the database, and confirm with them first since it's irreversible.
-- No `.env` file exists on the server and no `SECRET_KEY`/`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`ANTHROPIC_API_KEY` are set - the live site currently runs with the insecure default session secret and Google sign-in unconfigured (guest login only). Not this skill's job to fix, but worth mentioning to the user once per session if it comes up.
+- It's deployed via `docker compose` (`docker-compose.yml` in that directory) as containers `dailyptr-web` (port 8000) and `dailyptr-postgres`, plus a `dailyptr-sandbox-image-1` helper image that's built but never run standalone (used to spin up per-submission sandbox containers).
+- **Database is Postgres** (`dailyptr-postgres`, a named Docker volume `dailyptr_pg_data` - not a host bind mount), not SQLite. Schema is managed by Alembic (`backend/alembic/`), run automatically via `app/database.py: init_db()` on every app startup (`alembic upgrade head` - idempotent, no separate manual migration step for a routine deploy). A brand-new model change needs a real migration file generated first though (`alembic revision --autogenerate`) - that's a code change to commit/push like any other, not something this skill generates for you.
+- **Never delete the `dailyptr_pg_data` volume (or run `docker compose down -v`) as part of a routine deploy** - that wipes the live database. Only do that if the user explicitly asks to reset/wipe the database, and confirm with them first since it's irreversible.
+- `.env` in that directory holds `SECRET_KEY`, `GOOGLE_CLIENT_ID`/`_SECRET`, `GOOGLE_REDIRECT_URI`, and `POSTGRES_PASSWORD` - all real values as of 2026-08-19 (Google sign-in is configured; `ANTHROPIC_API_KEY` is deliberately left unset, so AI grading falls back to plain self-report). Never print its contents.
 
 ## Steps
 
@@ -31,7 +32,7 @@ Ground truth about this setup (verified 2026-08-19 - re-check if any of it seems
    ```
    ssh austin@au5y-serv "cd /home/austin/docker/dailyptr && docker compose build && docker compose up -d"
    ```
-   This recreates `dailyptr-web` from the new image; the bind-mounted `data/` dir (and thus the database) is untouched. Any new SQLAlchemy tables/columns are applied automatically on startup via `app/database.py`'s migration in `init_db()` - no manual migration step needed as of the schema this skill description was written against (check `backend/app/database.py` if that ever changes).
+   This recreates `dailyptr-web` from the new image; `dailyptr-postgres` and its named volume are untouched (compose only recreates a service whose config actually changed). Alembic runs automatically on `web`'s startup and applies any new migration file that shipped in this deploy.
 
 5. **Verify.**
    ```
@@ -46,6 +47,6 @@ Ground truth about this setup (verified 2026-08-19 - re-check if any of it seems
 
 Not part of a normal deploy. If the user explicitly asks to reset the live database:
 ```
-ssh austin@au5y-serv "cd /home/austin/docker/dailyptr && docker compose down && rm -rf data && docker compose up -d"
+ssh austin@au5y-serv "cd /home/austin/docker/dailyptr && docker compose down -v && docker compose up -d"
 ```
-Confirm with the user first - this deletes all accounts and progress on the live site with no undo.
+`-v` removes the named volumes (`dailyptr_pg_data`), not just the containers - that's the actual wipe. Confirm with the user first - this deletes all accounts and progress on the live site with no undo.
