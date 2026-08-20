@@ -1,9 +1,10 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from authlib.integrations.base_client import OAuthError
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -94,18 +95,23 @@ def _log_in_and_redirect(request: Request, user) -> RedirectResponse:
     return response
 
 
+def _error_redirect(request: Request, reason: str) -> RedirectResponse:
+    logger.error("Google OAuth callback failed: %s", reason)
+    depth = request.url.path.count("/") - 1
+    root = "../" * depth if depth else "."
+    return RedirectResponse(url=f"{root}login?error={quote(reason)}", status_code=303)
+
+
 @app.get("/auth/google/callback", name="google_callback")
 async def google_callback(request: Request):
     try:
         token = await auth.oauth.google.authorize_access_token(request)
-    except OAuthError:
-        logger.exception("Google OAuth token exchange failed")
-        raise HTTPException(status_code=400, detail="Google sign-in failed - please try again")
+    except OAuthError as exc:
+        return _error_redirect(request, f"{type(exc).__name__}: {exc}")
 
     claims = token.get("userinfo") or {}
     if "sub" not in claims:
-        logger.error("Google callback token had no userinfo claims: %r", token)
-        raise HTTPException(status_code=400, detail="Google sign-in failed - please try again")
+        return _error_redirect(request, f"no userinfo claims in token (keys: {list(token.keys())})")
 
     db = SessionLocal()
     try:

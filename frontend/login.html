@@ -290,7 +290,12 @@
   </div>
   <script>
     const params = new URLSearchParams(window.location.search);
-    if (params.get("error")) document.getElementById("login-error").style.display = "block";
+    const err = params.get("error");
+    if (err) {
+      const el = document.getElementById("login-error");
+      el.textContent = "Sign-in failed: " + err;
+      el.style.display = "block";
+    }
   </script>
 </body>
 
