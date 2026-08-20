@@ -23,38 +23,17 @@ def build_challenge_out(challenge: models.CodeReviewChallenge) -> schemas.CodeRe
     )
 
 
-@router.post("/{day_id}/submit", response_model=schemas.CodeReviewSubmitOut)
-def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    day = db.get(models.Day, day_id)
-    if not day or day.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Day not found")
-    if config.TRACKS[day.track]["review_kind"] != "code":
-        raise HTTPException(status_code=400, detail="This track doesn't use Code Review.")
-    if day.code_review_completed:
-        raise HTTPException(status_code=400, detail="Code review already completed for this day")
-
+def grade_and_record_submission(db: Session, user: models.User, day: models.Day, matches: list) -> schemas.CodeReviewSubmitOut:
+    """The actual grading + persistence, factored out of the route below so
+    routers/claim.py can replay a guest's submission through the exact same
+    logic. Caller is responsible for the day/ownership/review-kind/already-
+    completed HTTP guards."""
     challenge = db.get(models.CodeReviewChallenge, day.code_review_challenge_id)
     if not challenge:
         raise HTTPException(status_code=500, detail="Code review challenge missing from content bank")
 
-    # Last match submitted for a given line wins, mirroring how re-picking a
-    # quiz choice overwrites the earlier one.
-    submitted = {m.line: m.reason for m in body.matches}
-
-    results = []
-    correct_count = 0
-    for issue in challenge.issues:
-        line_found = issue["line"] in submitted
-        reason_correct = line_found and submitted[issue["line"]] == issue["reason"]
-        if line_found and reason_correct:
-            correct_count += 1
-        results.append(schemas.CodeReviewIssueResult(
-            line=issue["line"],
-            reason=issue["reason"],
-            explanation=issue["explanation"],
-            line_found=line_found,
-            reason_correct=reason_correct,
-        ))
+    raw_results, correct_count = scoring.grade_line_matches(challenge.issues, matches)
+    results = [schemas.CodeReviewIssueResult(**r) for r in raw_results]
 
     total = len(challenge.issues)
     day.code_review_completed = True
@@ -74,3 +53,16 @@ def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Sessio
         points_awarded=points_awarded,
         milestones_hit=milestones_hit,
     )
+
+
+@router.post("/{day_id}/submit", response_model=schemas.CodeReviewSubmitOut)
+def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    day = db.get(models.Day, day_id)
+    if not day or day.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Day not found")
+    if config.TRACKS[day.track]["review_kind"] != "code":
+        raise HTTPException(status_code=400, detail="This track doesn't use Code Review.")
+    if day.code_review_completed:
+        raise HTTPException(status_code=400, detail="Code review already completed for this day")
+
+    return grade_and_record_submission(db, user, day, body.matches)

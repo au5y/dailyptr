@@ -4,6 +4,7 @@ on first access). Selection is seeded by the date itself so it's stable if
 you reload the page, but still varies day to day across the content pool.
 """
 import random
+from dataclasses import dataclass
 from datetime import date as date_type, timedelta
 
 from fastapi import HTTPException
@@ -12,17 +13,25 @@ from sqlalchemy.orm import Session
 from . import config, models
 
 
-def get_or_create_day(db: Session, user: models.User, target_date: date_type, track: str = config.DEFAULT_TRACK) -> models.Day:
+@dataclass
+class DayContent:
+    weekday: int
+    difficulty: str
+    quiz_question_ids: list[int]
+    review_challenge_id: int
+    concept_check_id: int
+
+
+def select_day_content(db: Session, target_date: date_type, track: str) -> DayContent:
+    """The deterministic (date, track) -> content pick get_or_create_day uses,
+    without touching the Day table - a pure function of (date, track), never
+    user_id (see the module docstring). Also used by the stateless guest
+    content-fetch endpoint (routers/guest.py) so guests see identical content
+    to what a real Day row would pick, without ever writing one."""
     if target_date > date_type.today():
         raise HTTPException(status_code=400, detail="That day hasn't unlocked yet.")
     if track not in config.TRACKS:
         raise HTTPException(status_code=404, detail=f"Unknown track '{track}'.")
-
-    existing = db.query(models.Day).filter(
-        models.Day.user_id == user.id, models.Day.date == target_date, models.Day.track == track
-    ).one_or_none()
-    if existing:
-        return existing
 
     weekday = target_date.weekday()
     difficulty = config.WEEKDAY_DIFFICULTY[weekday].value
@@ -43,18 +52,41 @@ def get_or_create_day(db: Session, user: models.User, target_date: date_type, tr
         )
 
     quiz_ids, review_challenge_id, concept_check_id = _pick_day_content(rng, quiz_pool, review_pool, concept_pool)
+    return DayContent(
+        weekday=weekday,
+        difficulty=difficulty,
+        quiz_question_ids=quiz_ids,
+        review_challenge_id=review_challenge_id,
+        concept_check_id=concept_check_id,
+    )
+
+
+def get_or_create_day(db: Session, user: models.User, target_date: date_type, track: str = config.DEFAULT_TRACK) -> models.Day:
+    if target_date > date_type.today():
+        raise HTTPException(status_code=400, detail="That day hasn't unlocked yet.")
+    if track not in config.TRACKS:
+        raise HTTPException(status_code=404, detail=f"Unknown track '{track}'.")
+
+    existing = db.query(models.Day).filter(
+        models.Day.user_id == user.id, models.Day.date == target_date, models.Day.track == track
+    ).one_or_none()
+    if existing:
+        return existing
+
+    content = select_day_content(db, target_date, track)
+    review_kind = config.TRACKS[track]["review_kind"]
 
     day = models.Day(
         user_id=user.id,
         date=target_date,
         track=track,
-        weekday=weekday,
-        difficulty=difficulty,
-        quiz_question_ids=quiz_ids,
-        code_review_challenge_id=review_challenge_id if review_kind == "code" else None,
-        critical_reasoning_challenge_id=review_challenge_id if review_kind == "reasoning" else None,
-        concept_check_id=concept_check_id,
-        quiz_total=len(quiz_ids),
+        weekday=content.weekday,
+        difficulty=content.difficulty,
+        quiz_question_ids=content.quiz_question_ids,
+        code_review_challenge_id=content.review_challenge_id if review_kind == "code" else None,
+        critical_reasoning_challenge_id=content.review_challenge_id if review_kind == "reasoning" else None,
+        concept_check_id=content.concept_check_id,
+        quiz_total=len(content.quiz_question_ids),
     )
     db.add(day)
     db.commit()

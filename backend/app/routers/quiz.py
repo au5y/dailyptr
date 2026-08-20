@@ -8,28 +8,18 @@ from ..database import get_db
 router = APIRouter(prefix="/api/quiz", tags=["quiz"])
 
 
-@router.post("/{day_id}/question/{question_id}/answer", response_model=schemas.QuizAnswerOut)
-def answer_quiz_question(
-    day_id: int,
-    question_id: int,
-    body: schemas.QuizAnswerIn,
-    db: Session = Depends(get_db),
-    user: models.User = Depends(get_current_user),
-):
-    day = db.get(models.Day, day_id)
-    if not day or day.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Day not found")
-    if day.quiz_completed:
-        raise HTTPException(status_code=400, detail="Quiz already completed for this day")
-    if question_id not in day.quiz_question_ids:
-        raise HTTPException(status_code=404, detail="Question not part of this day's quiz")
-
+def grade_and_record_answer(db: Session, user: models.User, day: models.Day, question_id: int, choice_index: int) -> schemas.QuizAnswerOut:
+    """The actual grading + persistence, factored out of the route below so
+    routers/claim.py can replay a guest's accumulated answers through the
+    exact same logic instead of a third reimplementation. Caller is
+    responsible for the day/ownership/already-completed HTTP guards - this
+    assumes question_id is already known to belong to the day's quiz."""
     question = db.get(models.QuizQuestion, question_id)
-    is_correct = body.choice_index == question.correct_index
+    is_correct = choice_index == question.correct_index
 
     # Re-answering (picking a different choice) just overwrites the entry -
     # only the latest pick per question counts once the quiz finalizes below.
-    day.quiz_answers = {**day.quiz_answers, str(question_id): body.choice_index}
+    day.quiz_answers = {**day.quiz_answers, str(question_id): choice_index}
 
     points_awarded = 0.0
     milestones_hit: list[int] = []
@@ -59,3 +49,22 @@ def answer_quiz_question(
         points_awarded=points_awarded,
         milestones_hit=milestones_hit,
     )
+
+
+@router.post("/{day_id}/question/{question_id}/answer", response_model=schemas.QuizAnswerOut)
+def answer_quiz_question(
+    day_id: int,
+    question_id: int,
+    body: schemas.QuizAnswerIn,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    day = db.get(models.Day, day_id)
+    if not day or day.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Day not found")
+    if day.quiz_completed:
+        raise HTTPException(status_code=400, detail="Quiz already completed for this day")
+    if question_id not in day.quiz_question_ids:
+        raise HTTPException(status_code=404, detail="Question not part of this day's quiz")
+
+    return grade_and_record_answer(db, user, day, question_id, body.choice_index)

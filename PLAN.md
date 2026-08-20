@@ -438,7 +438,48 @@ Two real bugs worth remembering (same spirit as Phase 1/2's lists):
   bind-mounted frontend updates live, which made this confusing to spot -
   new JS hitting old API responses, not an obviously-stale deploy).
 
-## Phase 8 - Guest mode: local-only until sign-in (spec, 2026-08-19)
+## Phase 8 - Guest mode: local-only until sign-in (backend half done, 2026-08-20)
+
+**Update, 2026-08-20 - backend half built and tested; frontend deferred.**
+Two open questions below got decided this session: (1) guest identity stays
+exactly as it is today (`POST /auth/guest` still creates a real, disposable
+`User` row + session cookie - genuine anonymity would mean reworking the
+whole app-shell-serving path in `AuthMiddleware` for no real benefit, since
+the goal was always "no *progress* data in the DB," not "no identity at
+all"); (2) the merge rule for claiming is **existing account data always
+wins** per `(date, track)` key and per subscribed track - a local guest
+record only fills a gap the account doesn't already have, never merged with
+one that exists (streaks are sequences, not counters). Also decided:
+subscriptions/onboarding move local too, not just `Day` progress.
+
+Shipped: `day_service.select_day_content` (the pure (date,track)->content
+pick, extracted out of `get_or_create_day` so both the real and guest paths
+share one selection implementation); `routers/guest.py` (`GET
+/api/guest/challenge`, `POST /api/guest/quiz/answer`, `/code-review/check`,
+`/critical-reasoning/check`, `/concept/score` - all stateless, all re-derive
+content server-side from `(date, track)` alone, write no `Day` row, require
+a guest identity but 403 for real accounts); `scoring.grade_line_matches`
+(the line-matching algorithm extracted out of `code_review.py`/
+`critical_reasoning.py` once guest mode made it a 4th caller - crossed the
+duplication threshold the codebase's "keep them as full sibling routers"
+precedent didn't); `grade_and_record_*`/`record_submission` service
+functions extracted from each grading router's HTTP handler; and
+`routers/claim.py` (`POST /api/claim`) which replays a guest's accumulated
+local days/subscriptions into a real account through those exact same
+service functions - never a third reimplementation of grading logic -
+applying the skip-if-exists merge rule, chronologically per track so streak/
+milestone replay comes out identical to live day-by-day play. All net-new
+`backend/tests/test_guest.py`/`test_claim.py` plus the full existing suite
+green (32 tests) - the extractions were verified to be zero-behavior-change
+before being reused a second/third time.
+
+**Not done yet, by explicit scope decision**: the frontend `Progress`-module
+localStorage rewrite (`frontend/app.js`) - the seam design, localStorage
+schema, client-computed streak/history, and the actual claim-on-sign-in
+trigger are all designed (see this session's planning) but none of it is
+wired into the UI. Guests today still use the old DB-backed path
+unchanged; the new `/api/guest/*`/`/api/claim` endpoints exist and are
+tested but are not yet reachable from the app itself.
 
 Decided 2026-08-19: guest ("Play offline") accounts currently create a real
 `User` row and persist every `Day`/submission to Postgres exactly like a

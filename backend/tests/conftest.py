@@ -56,6 +56,21 @@ def client():
 
 
 @pytest.fixture()
+def guest_client():
+    """A TestClient logged in as a fresh guest (see auth.create_guest_user) -
+    the /api/guest/* routes 403 for anyone else, and the real routers behave
+    differently for a guest identity in a few places (e.g. /api/me's is_guest)."""
+    with TestClient(app) as c:
+        db = SessionLocal()
+        try:
+            user = auth.create_guest_user(db)
+        finally:
+            db.close()
+        c.cookies.set(auth.COOKIE_NAME, auth.make_session_cookie(user.id))
+        yield c
+
+
+@pytest.fixture()
 def db_session():
     session = SessionLocal()
     try:

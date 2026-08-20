@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import auth, config
 from .database import init_db, SessionLocal
 from .seed import seed_content
-from .routers import challenges, quiz, code_review, critical_reasoning, concept
+from .routers import challenges, quiz, code_review, critical_reasoning, concept, guest, claim
 
 # The frontend is a handful of static files. docker-compose mounts the repo's
 # ./frontend directory to /app/frontend inside the container; running locally
@@ -47,6 +47,8 @@ app.include_router(quiz.router)
 app.include_router(code_review.router)
 app.include_router(critical_reasoning.router)
 app.include_router(concept.router)
+app.include_router(guest.router)
+app.include_router(claim.router)
 
 
 @app.get("/healthz")

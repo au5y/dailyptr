@@ -53,7 +53,15 @@ def _build_challenge_out(db: Session, user: models.User, day: models.Day) -> sch
 
 @router.get("/config", response_model=schemas.AppConfigOut)
 def get_app_config():
-    return schemas.AppConfigOut(ai_grading_enabled=bool(config.ANTHROPIC_API_KEY))
+    return schemas.AppConfigOut(
+        ai_grading_enabled=bool(config.ANTHROPIC_API_KEY),
+        scoring=schemas.ScoringConfigOut(
+            base_quiz=config.BASE_POINTS_PER_QUIZ_QUESTION,
+            base_concept=config.BASE_POINTS_PER_CONCEPT_CHECK,
+            on_time_bonus=config.ON_TIME_STREAK_BONUS,
+            difficulty_multipliers={d.value: m for d, m in config.DIFFICULTY_POINT_MULTIPLIER.items()},
+        ),
+    )
 
 
 @router.get("/me", response_model=schemas.MeOut)

@@ -31,12 +31,12 @@ def ai_grade_concept(day_id: int, body: schemas.ConceptGradeIn, db: Session = De
     return schemas.ConceptGradeOut(correct=correct, feedback=feedback)
 
 
-@router.post("/{day_id}/submit", response_model=schemas.ConceptSubmitOut)
-def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
-    day = db.get(models.Day, day_id)
-    if not day or day.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Day not found")
-
+def record_submission(db: Session, user: models.User, day: models.Day, self_rating_correct: bool) -> schemas.ConceptSubmitOut:
+    """The actual persistence, factored out of the route below so
+    routers/claim.py can replay a guest's self-rating through the exact same
+    logic. Caller is responsible for the day/ownership HTTP guard; unlike the
+    other components this is idempotent by construction (no-ops if already
+    completed) rather than raising, matching the route's original behavior."""
     concept = db.get(models.ConceptCheck, day.concept_check_id)
     if not concept:
         raise HTTPException(status_code=500, detail="Concept check missing from content bank")
@@ -46,11 +46,20 @@ def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Dep
     milestones_hit: list[int] = []
     if not day.concept_completed:
         day.concept_completed = True
-        day.concept_self_rating = body.self_rating_correct
-        if body.self_rating_correct:
+        day.concept_self_rating = self_rating_correct
+        if self_rating_correct:
             points = scoring.points_for_concept(day.difficulty)
             day.points_earned += points
         bonus, milestones_hit = scoring.maybe_award_completion_bonus(db, user, day)
         db.commit()
 
     return schemas.ConceptSubmitOut(model_answer=concept.model_answer, points_awarded=points + bonus, milestones_hit=milestones_hit)
+
+
+@router.post("/{day_id}/submit", response_model=schemas.ConceptSubmitOut)
+def submit_concept(day_id: int, body: schemas.ConceptSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    day = db.get(models.Day, day_id)
+    if not day or day.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Day not found")
+
+    return record_submission(db, user, day, body.self_rating_correct)

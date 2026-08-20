@@ -18,6 +18,36 @@ def points_for_code_review(correct_count: int, total: int, difficulty: str) -> f
     return round(config.BASE_POINTS_PER_CODE_REVIEW * fraction * multiplier(difficulty), 1)
 
 
+def grade_line_matches(issues: list[dict], matches: list) -> tuple[list[dict], int]:
+    """The click-a-line/match-a-reason grading algorithm shared by Code
+    Review and Critical Reasoning Review (and the stateless guest variants
+    of both, routers/guest.py): for each real issue, was its line flagged at
+    all, and if so, was it matched to the right reason. `matches` is a list
+    of objects with `.line`/`.reason` attributes (schemas.CodeReviewMatchIn/
+    CriticalReasoningMatchIn - the two are structurally identical). Returns
+    (per-issue result dicts with keys line/reason/explanation/line_found/
+    reason_correct, correct_count)."""
+    # Last match submitted for a given line wins, mirroring how re-picking a
+    # quiz choice overwrites the earlier one.
+    submitted = {m.line: m.reason for m in matches}
+
+    results = []
+    correct_count = 0
+    for issue in issues:
+        line_found = issue["line"] in submitted
+        reason_correct = line_found and submitted[issue["line"]] == issue["reason"]
+        if line_found and reason_correct:
+            correct_count += 1
+        results.append({
+            "line": issue["line"],
+            "reason": issue["reason"],
+            "explanation": issue["explanation"],
+            "line_found": line_found,
+            "reason_correct": reason_correct,
+        })
+    return results, correct_count
+
+
 def points_for_concept(difficulty: str) -> float:
     return round(config.BASE_POINTS_PER_CONCEPT_CHECK * multiplier(difficulty), 1)
 

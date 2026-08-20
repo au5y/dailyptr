@@ -100,6 +100,26 @@ class ChallengeOut(BaseModel):
     concept: ConceptCheckOut
 
 
+class VirtualDayOut(BaseModel):
+    """A day's shape for a guest content fetch (routers/guest.py) - no
+    persisted Day row exists, so there's no id/points_earned/completed_at/
+    fully_completed the way DayOut has - just the deterministic (date, track)
+    facts day_service.select_day_content computes."""
+
+    date: date_type
+    track: str
+    weekday: int
+    difficulty: str
+
+
+class GuestChallengeOut(BaseModel):
+    day: VirtualDayOut
+    quiz: list[QuizQuestionOut]
+    code_review: CodeReviewChallengeOut | None = None
+    critical_reasoning: CriticalReasoningChallengeOut | None = None
+    concept: ConceptCheckOut
+
+
 class QuizAnswerIn(BaseModel):
     choice_index: int
 
@@ -194,8 +214,57 @@ class CriticalReasoningSubmitOut(BaseModel):
     milestones_hit: list[int] = []
 
 
+class GuestQuizAnswerIn(BaseModel):
+    date: date_type
+    track: str
+    question_id: int
+    choice_index: int
+
+
+class GuestQuizAnswerOut(BaseModel):
+    """Deliberately no quiz_completed/points_awarded - a stateless single-
+    question grade doesn't know whether this was the day's last question
+    (that's client-side accumulated state, see frontend Progress module,
+    not built yet); the client computes quiz points itself from
+    AppConfigOut.scoring once every question in the day is answered."""
+
+    correct: bool
+    correct_index: int
+    explanation: str
+
+
+class GuestReviewCheckIn(BaseModel):
+    date: date_type
+    track: str
+    matches: list[CodeReviewMatchIn]
+
+
+class GuestConceptScoreIn(BaseModel):
+    date: date_type
+    track: str
+    self_rating_correct: bool
+
+
+class GuestConceptScoreOut(BaseModel):
+    points_awarded: float
+
+
+class ScoringConfigOut(BaseModel):
+    """The scoring constants needed to compute guest quiz points client-side
+    (routers/guest.py's stateless quiz endpoint deliberately doesn't return
+    points_awarded - see its docstring). Point arithmetic is a deterministic
+    formula, not a security-sensitive judgment (correctness itself is always
+    server-checked); it's also recomputed authoritatively at claim time."""
+
+    base_quiz: float
+    base_concept: float
+    on_time_bonus: float
+    difficulty_multipliers: dict[str, float]
+
+
 class AppConfigOut(BaseModel):
     ai_grading_enabled: bool
+    scoring: ScoringConfigOut
 
 
 class MeOut(BaseModel):
@@ -212,3 +281,33 @@ class StatsOut(BaseModel):
     days_completed: int
     days_missed_open: int  # past days not yet fully completed
     badges: list[int]  # streak milestones (config.STREAK_MILESTONES) earned on this track
+
+
+class ClaimSubscriptionIn(BaseModel):
+    track: str
+    # The guest's original local subscribe date - preserved (not "today") so
+    # a claimed day's is_late/is_bonus classification stays consistent with
+    # what the guest actually saw locally. Ignored if the account already
+    # has a subscription for this track (existing wins - see ClaimOut).
+    subscribed_at: date_type
+
+
+class ClaimDayIn(BaseModel):
+    track: str
+    date: date_type
+    quiz_answers: dict[str, int] = {}  # question_id (str) -> choice_index, whatever was accumulated locally
+    code_review_matches: list[CodeReviewMatchIn] | None = None
+    critical_reasoning_matches: list[CriticalReasoningMatchIn] | None = None
+    concept_self_rating: bool | None = None
+
+
+class ClaimIn(BaseModel):
+    subscriptions: list[ClaimSubscriptionIn] = []
+    days: list[ClaimDayIn] = []
+
+
+class ClaimOut(BaseModel):
+    claimed_days: list[DayOut]
+    skipped_days: list[dict]  # [{"track": ..., "date": ..., "reason": ...}]
+    claimed_subscriptions: list[str]  # track ids newly subscribed
+    skipped_subscriptions: list[str]  # already subscribed - left untouched
