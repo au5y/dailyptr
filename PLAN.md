@@ -166,17 +166,99 @@ screenshots) plus the existing pytest suite.
   concept id, per track).
 - **Weak-topic targeting for quizzes**: same idea for quiz topic selection.
 
+## Practice projects (things for Austin to build himself, not just ask for)
+
+Backend-engineering exercises the app's own infra happens to motivate -
+tracked here so they don't get silently done *for* him instead of *by* him.
+Both assume starting from au5y-serv's current state (database was wiped
+2026-08-19, so there's no real user data riding on either yet - good timing
+for a clean cutover rather than a data-migration exercise, though writing a
+one-off "copy the old SQLite rows over" script first is itself good reps if
+that's wanted too).
+
+- **Swap SQLite for Postgres + adopt real migrations (Alembic)**: replaces
+  Phase 5's old "a real migration framework" bullet with a concrete plan.
+  `requirements.txt` already has `psycopg2-binary`, and `database.py`
+  already branches `connect_args` on `DATABASE_URL.startswith("sqlite")`,
+  so the app itself barely needs to change - swapping `DATABASE_URL` to a
+  `postgresql://...` URL should just work. What's actually worth doing by
+  hand:
+  1. Add a `postgres:16-alpine` service to `docker-compose.yml` (au5y-serv
+     already runs this exact image for `authentik-db` - same pattern) with
+     a named volume for persistence and a healthcheck the `web` service
+     depends on.
+  2. Replace `database.py`'s `_migrate_add_onboarded_column` - a hand-rolled,
+     SQLite-only, one-column patch (raw `PRAGMA table_info` + `ALTER TABLE`)
+     that would silently no-op or break on Postgres - with `alembic init`,
+     an initial migration capturing the current schema, and `alembic
+     upgrade head` run on startup/deploy instead of `Base.metadata.create_all`.
+     Every future model change becomes a real migration instead of another
+     ad hoc patch function.
+  3. **The "object management layer" part**: introduce a repository /
+     data-access layer between the routers and the raw ORM. Right now
+     `db.query(models.Day)...`-style calls are scattered directly across
+     `routers/*.py`, `day_service.py`, and `scoring.py` - fine at this size,
+     but it's exactly the kind of thing that's worth practicing properly:
+     a `backend/app/repositories/` module (or similar) exposing named
+     methods (`DayRepository.get_or_create(...)`,
+     `UserRepository.find_or_create_google_user(...)`,
+     `TrackSubscriptionRepository.subscribe(...)`) that own all the query
+     construction, so route handlers only ever call intention-revealing
+     methods and never touch `db.query(...)` directly. Makes the ORM layer
+     mockable/swappable and is the actual pattern (Repository / DAL) that
+     "object management layer" is reaching for.
+
 ## Phase 3 - Harden the sandbox further
 
+- **Replace the per-submission sandbox runner (design question raised
+  2026-08-19, not decided)**: profiling on au5y-serv this session found
+  `docker run` itself costs ~3s per submission *before* any compiling
+  happens - confirmed independent of dailyptr's own image (`docker run --rm
+  alpine true` costs the same there), so it's inherent to "spin up one
+  disposable container per submission" on a host already running two dozen
+  other containers. That's on top of `docker_runner.py`/`subprocess_runner.py`
+  both being homegrown, and `SANDBOX_MODE=docker` specifically requiring a
+  mounted host Docker socket that PaaS hosts like Render/Railway don't
+  offer at all (see `Dockerfile.render`'s subprocess-mode fallback, which
+  is explicitly documented as "NOT a real sandbox" - shares the app
+  container's filesystem/network, rlimits only). Options, roughly in order
+  of recommendation:
+  1. **Self-hosted external execution service (e.g. Piston)** - dailyptr
+     POSTs source+stdin to an HTTP API instead of shelling out to `docker
+     run` itself; the execution engine owns its own per-request isolation
+     internally, so dailyptr's own container no longer needs docker-socket
+     access at all. Solves the sandbox-hardening question and the
+     Railway/Render portability question in one move - highest leverage of
+     these options.
+  2. **A warm container pool** - keep N long-lived isolated containers
+     around and dispatch via `docker exec` instead of `docker run` each
+     time, recycling/resetting between submissions. Cuts the ~3s
+     create-cost but adds real complexity (pool lifecycle, guaranteeing no
+     state leaks between two different users' code in the same reused
+     container) for less benefit than option 1.
+  3. **Firecracker microVMs** (what Vercel Sandbox / fly.io use) - ~125ms
+     boot instead of several seconds, the technically "correct" answer if
+     this ever needs to hold up under untrusted strangers at scale.
+     Meaningful extra infra (KVM, firecracker-containerd) for a personal
+     app - probably overkill right now.
+  4. **Drop compiled execution for the C++ track, self-check it like
+     html_css/system_design** - simplest to build, but gives up the "does
+     it actually compile and pass" rigor that's the C++ track's whole
+     point. Not recommended.
 - **Compile-time diagnostics**: stderr is dumped back to the user as-is;
   worth stripping absolute tmpdir paths that leak the host's temp directory
   name (cosmetic, but visible now since Docker mode actually works).
 - **Structured per-test-case results**: promote the harness's pass/fail
   lines to a real `list[TestCaseResult]` in the API response instead of a
   text blob, so the frontend can render a table.
-- **Resource limit tuning**: current Docker limits (128MB / 0.5 CPU / 10s)
-  are conservative guesses; revisit once real submissions (including the
-  new cpp_backend-flavored problems) show what they actually need.
+- **Resource limit tuning (partially done 2026-08-19)**: `SANDBOX_CPU_LIMIT`
+  raised 0.5 -> 1.0 core after measuring that the STL-heavy harness compile
+  (`bits/stdc++.h`) takes ~1.9s of real CPU time uncapped but was being
+  stretched to 4-6s wall time by the 0.5-core cap even with the host mostly
+  idle; cut a real submission's round trip from ~11.5s to ~9.9s. Memory
+  (128MB) and timeout (10s) limits are still untouched conservative
+  guesses - revisit once real submissions (including the cpp_backend-flavored
+  problems) show what they actually need.
 
 ## Phase 4 - Make progress visible
 
@@ -196,12 +278,44 @@ screenshots) plus the existing pytest suite.
   exists (Google sign-in / guest accounts, Phase 2), but the app still
   needs to actually sit behind a reverse proxy with real TLS to be exposed
   beyond localhost/Tailscale - self-hosted, in progress.
-- **A real migration framework**: schema changes currently mean wiping the
-  DB file (see Phase 2's bug list) - fine pre-launch, not once real user
-  data exists. Alembic is the obvious choice given SQLAlchemy is already
-  in use.
+- **A real migration framework**: superseded by the detailed "Swap SQLite
+  for Postgres + adopt real migrations" entry under **Practice projects**
+  above.
 - **Judge0 or another external judge**: only worth it for far more problems
-  than hand-writing harnesses can keep up with.
+  than hand-writing harnesses can keep up with - see also the Piston-style
+  option under Phase 3's sandbox-replacement writeup, which is the same
+  idea for a different reason (portability/isolation, not problem volume).
+
+## Phase 6 - Practice modalities beyond quiz/coding/concept (ideas, not decided)
+
+Raised 2026-08-19: what else is worth practicing daily that isn't LeetCode-
+style algorithms, a trivia quiz, or open-ended free response? Rough ideas,
+roughly ordered by how cheaply they'd bolt onto what already exists:
+
+- **Code review challenges** (recommended next content type - no new
+  infra): show a small diff or snippet with 1-3 seeded bugs/smells
+  (correctness, security, a real anti-pattern), self-report which ones were
+  found, reveal an annotated answer key. Reuses the concept-check
+  self-grade UI/pattern almost exactly - just a diff instead of a prompt.
+- **Debugging challenges** (recommended next content type - no new infra):
+  a stack trace or failing-test output plus a broken snippet, multiple
+  choice on the root cause. Reuses the quiz UI/grading directly.
+- **Log/metrics investigation challenges**: give a snippet of logs, timings,
+  or a resource graph, ask what's actually wrong - basically what this
+  session's own perf-debugging detour was (~11.5s code submissions traced
+  to container-startup + CPU-throttled compiles). Quiz-style grading,
+  distinctly non-leetcode, and closer to what real on-call work looks like
+  than almost anything else on this list.
+- **Test-writing exercises** (biggest lift, highest realism payoff): given
+  a spec, write unit tests against it; grade by running the submitted tests
+  against N seeded *buggy* reference implementations and checking how many
+  they actually catch (mutation-testing-style). A natural extension of the
+  existing coding-problem sandbox infra once Phase 3's sandbox-replacement
+  question is settled, rather than a separate system.
+- **Git workflow drills** (lower priority - harder to grade
+  automatically): present a merge-conflict or messy-history scenario,
+  have the user resolve/rebase it. Needs a real git sandbox per attempt,
+  more infra than everything else on this list for a niche skill.
 
 ## Decisions made along the way (and why)
 
