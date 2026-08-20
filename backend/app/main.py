@@ -1,7 +1,9 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from authlib.integrations.base_client import OAuthError
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -34,6 +36,8 @@ async def lifespan(app: FastAPI):
         db.close()
     yield
 
+
+logger = logging.getLogger("dailyptr.auth")
 
 app = FastAPI(title="dailyptr", lifespan=lifespan)
 app.add_middleware(auth.AuthMiddleware)
@@ -92,8 +96,16 @@ def _log_in_and_redirect(request: Request, user) -> RedirectResponse:
 
 @app.get("/auth/google/callback", name="google_callback")
 async def google_callback(request: Request):
-    token = await auth.oauth.google.authorize_access_token(request)
+    try:
+        token = await auth.oauth.google.authorize_access_token(request)
+    except OAuthError:
+        logger.exception("Google OAuth token exchange failed")
+        raise HTTPException(status_code=400, detail="Google sign-in failed - please try again")
+
     claims = token.get("userinfo") or {}
+    if "sub" not in claims:
+        logger.error("Google callback token had no userinfo claims: %r", token)
+        raise HTTPException(status_code=400, detail="Google sign-in failed - please try again")
 
     db = SessionLocal()
     try:
