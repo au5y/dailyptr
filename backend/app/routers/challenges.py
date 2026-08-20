@@ -8,6 +8,7 @@ from ..auth import get_current_user
 from ..database import get_db
 from ..day_service import get_or_create_day, start_date_for, subscribe
 from .code_review import build_challenge_out as build_code_review_out
+from .critical_reasoning import build_challenge_out as build_critical_reasoning_out
 
 router = APIRouter(prefix="/api", tags=["challenges"])
 
@@ -27,8 +28,14 @@ def _build_challenge_out(db: Session, user: models.User, day: models.Day) -> sch
     by_id = {q.id: q for q in questions}
     ordered = [by_id[i] for i in day.quiz_question_ids if i in by_id]
 
-    code_review = db.get(models.CodeReviewChallenge, day.code_review_challenge_id)
     concept = db.get(models.ConceptCheck, day.concept_check_id)
+
+    code_review_out = None
+    critical_reasoning_out = None
+    if config.TRACKS[day.track]["review_kind"] == "code":
+        code_review_out = build_code_review_out(db.get(models.CodeReviewChallenge, day.code_review_challenge_id))
+    else:
+        critical_reasoning_out = build_critical_reasoning_out(db.get(models.CriticalReasoningChallenge, day.critical_reasoning_challenge_id))
 
     start_date = start_date_for(db, user, day.track)
     day_out = schemas.DayOut.model_validate(day, from_attributes=True)
@@ -38,7 +45,8 @@ def _build_challenge_out(db: Session, user: models.User, day: models.Day) -> sch
     return schemas.ChallengeOut(
         day=day_out,
         quiz=[schemas.QuizQuestionOut.model_validate(q, from_attributes=True) for q in ordered],
-        code_review=build_code_review_out(code_review),
+        code_review=code_review_out,
+        critical_reasoning=critical_reasoning_out,
         concept=schemas.ConceptCheckOut.model_validate(concept, from_attributes=True),
     )
 
@@ -64,7 +72,7 @@ def get_tracks(db: Session = Depends(get_db), user: models.User = Depends(get_cu
         s.track for s in db.query(models.TrackSubscription).filter(models.TrackSubscription.user_id == user.id).all()
     }
     return [
-        schemas.TrackOut(id=tid, name=meta["name"], subscribed=tid in subscribed)
+        schemas.TrackOut(id=tid, name=meta["name"], review_kind=meta["review_kind"], subscribed=tid in subscribed)
         for tid, meta in config.TRACKS.items()
     ]
 
@@ -145,6 +153,9 @@ def reset_day(day_id: int, db: Session = Depends(get_db), user: models.User = De
     day.code_review_completed = False
     day.code_review_correct = 0
     day.code_review_total = 0
+    day.critical_reasoning_completed = False
+    day.critical_reasoning_correct = 0
+    day.critical_reasoning_total = 0
     day.concept_completed = False
     day.concept_self_rating = False
     day.points_earned = 0.0

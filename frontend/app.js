@@ -95,6 +95,7 @@ function celebrateMilestones(milestones) {
 const MASCOT_MSG = {
   quiz: "Warm up with a quick quiz.",
   "code-review": "Spot what's wrong with this snippet.",
+  "critical-reasoning": "Spot the flaw in this reasoning.",
   concept: "Explain it back in your own words.",
 };
 
@@ -250,7 +251,10 @@ function difficultyBadgeClass(d) {
 
 function renderChallenge(challenge) {
   current = challenge;
-  const { day, quiz, code_review, concept } = challenge;
+  const { day, quiz, code_review, critical_reasoning, concept } = challenge;
+  // Exactly one of code_review/critical_reasoning is populated, per the
+  // day's track's review_kind (see config.TRACKS on the backend).
+  const reviewKind = code_review ? "code" : "reasoning";
 
   const badge = document.getElementById("challenge-badge");
   badge.textContent = `${day.difficulty} · ${day.date}`;
@@ -261,9 +265,17 @@ function renderChallenge(challenge) {
   document.getElementById("challenge-late").hidden = !day.is_late;
   document.getElementById("challenge-bonus").hidden = !day.is_bonus;
 
-  renderNodes(day);
+  // Only the tab matching this track's review kind is shown - a track never
+  // has both Code Review and Critical Reasoning content at once.
+  document.querySelector('.node-btn[data-tab="code-review"]').hidden = reviewKind !== "code";
+  document.querySelector('.node-btn[data-tab="critical-reasoning"]').hidden = reviewKind !== "reasoning";
+  if (currentTab === "code-review" || currentTab === "critical-reasoning") {
+    currentTab = reviewKind === "code" ? "code-review" : "critical-reasoning";
+  }
+
+  renderNodes(day, reviewKind);
   renderQuiz(quiz, day);
-  renderCodeReview(code_review, day);
+  renderReviewChallenge(reviewKind, reviewKind === "code" ? code_review : critical_reasoning, day);
   renderConcept(concept, day);
 
   showView("challenge-view");
@@ -282,7 +294,7 @@ document.getElementById("reset-day-btn").addEventListener("click", async () => {
   }
 });
 
-function renderNodes(day) {
+function renderNodes(day, reviewKind) {
   const nodeState = (nodeId, done, isCurrent) => {
     const el = document.getElementById(nodeId);
     el.classList.toggle("done", done);
@@ -294,7 +306,11 @@ function renderNodes(day) {
     }
   };
   nodeState("node-quiz", day.quiz_completed, currentTab === "quiz");
-  nodeState("node-code-review", day.code_review_completed, currentTab === "code-review");
+  if (reviewKind === "code") {
+    nodeState("node-code-review", day.code_review_completed, currentTab === "code-review");
+  } else {
+    nodeState("node-critical-reasoning", day.critical_reasoning_completed, currentTab === "critical-reasoning");
+  }
   nodeState("node-concept", day.concept_completed, currentTab === "concept");
 }
 
@@ -374,37 +390,69 @@ async function submitQuizAnswer(q, ci, div) {
 
 // ---------- code review ----------
 // crState: interactive click-a-line / tap-a-reason matching state for the
-// code review currently on screen. flagged: ordered array of line numbers
-// (max MAX_FLAGS). reasons: {line -> reason text} for lines matched to a
-// reason so far. active: the flagged line waiting for a reason tap (or null).
+// review challenge (Code Review or Critical Reasoning - only one is ever on
+// screen for a given track, see REVIEW_KIND_CONFIG) currently on screen.
+// kind: which of the two this state belongs to, so handlers re-render the
+// right panel/re-derive the right text. flagged: ordered array of line
+// numbers (max MAX_CR_FLAGS). reasons: {line -> reason text} for lines
+// matched to a reason so far. active: the flagged line waiting for a reason
+// tap (or null).
 const MAX_CR_FLAGS = 3;
-let crState = { flagged: [], reasons: {}, active: null, bank: [], locked: false };
+let crState = { kind: "code", flagged: [], reasons: {}, active: null, bank: [], locked: false };
 
-function renderCodeReview(challenge, day) {
-  document.getElementById("code-review-title").textContent = challenge.title;
-  crState = { flagged: [], reasons: {}, active: null, bank: challenge.reason_bank.map((reason) => ({ reason, used: false })), locked: day.code_review_completed };
+// The two review kinds share identical interaction/grading logic, differing
+// only in which DOM ids/endpoint/Day fields/text field they touch - see
+// routers/code_review.py vs routers/critical_reasoning.py on the backend for
+// the same shape mirrored server-side.
+const REVIEW_KIND_CONFIG = {
+  code: {
+    elPrefix: "code-review",
+    endpoint: "code-review",
+    textField: "snippet",
+    completedField: "code_review_completed",
+    correctField: "code_review_correct",
+    totalField: "code_review_total",
+    verb: "bug or smell",
+  },
+  reasoning: {
+    elPrefix: "critical-reasoning",
+    endpoint: "critical-reasoning",
+    textField: "passage",
+    completedField: "critical_reasoning_completed",
+    correctField: "critical_reasoning_correct",
+    totalField: "critical_reasoning_total",
+    verb: "flaw in the reasoning",
+  },
+};
 
-  const resultBox = document.getElementById("code-review-result");
+function renderReviewChallenge(kind, challenge, day) {
+  const cfg = REVIEW_KIND_CONFIG[kind];
+  const completed = day[cfg.completedField];
+  document.getElementById(`${cfg.elPrefix}-title`).textContent = challenge.title;
+  crState = { kind, flagged: [], reasons: {}, active: null, bank: challenge.reason_bank.map((reason) => ({ reason, used: false })), locked: completed };
+
+  const resultBox = document.getElementById(`${cfg.elPrefix}-result`);
   resultBox.hidden = true;
-  document.getElementById("code-review-submit").hidden = day.code_review_completed;
-  document.getElementById("code-review-bank-hint").hidden = day.code_review_completed;
-  document.getElementById("code-review-hint").textContent = day.code_review_completed
+  document.getElementById(`${cfg.elPrefix}-submit`).hidden = completed;
+  document.getElementById(`${cfg.elPrefix}-bank-hint`).hidden = completed;
+  document.getElementById(`${cfg.elPrefix}-hint`).textContent = completed
     ? "Already completed."
-    : `Click the line(s) with a bug or smell (up to ${MAX_CR_FLAGS}), then tap a reason below to match it.`;
+    : `Click the line(s) with a ${cfg.verb} (up to ${MAX_CR_FLAGS}), then tap a reason below to match it.`;
 
-  renderCrSnippet(challenge.snippet);
-  renderCrBank();
+  renderCrSnippet(kind, challenge[cfg.textField]);
+  renderCrBank(kind);
 
-  if (day.code_review_completed) {
+  if (completed) {
     resultBox.hidden = false;
-    resultBox.textContent = `Already completed: ${day.code_review_correct}/${day.code_review_total} matched correctly.`;
+    resultBox.textContent = `Already completed: ${day[cfg.correctField]}/${day[cfg.totalField]} matched correctly.`;
   }
 }
 
-function renderCrSnippet(snippet) {
-  const container = document.getElementById("code-review-snippet");
+function renderCrSnippet(kind, text) {
+  const cfg = REVIEW_KIND_CONFIG[kind];
+  const container = document.getElementById(`${cfg.elPrefix}-snippet`);
   container.innerHTML = "";
-  snippet.split("\n").forEach((codeLine, idx) => {
+  text.split("\n").forEach((textLine, idx) => {
     const lineNum = idx + 1;
     const row = document.createElement("div");
     row.className = "cr-line";
@@ -421,7 +469,7 @@ function renderCrSnippet(snippet) {
 
     const code = document.createElement("span");
     code.className = "cr-line-code";
-    code.textContent = codeLine;
+    code.textContent = textLine;
     row.appendChild(code);
 
     if (crState.reasons[lineNum]) {
@@ -434,6 +482,10 @@ function renderCrSnippet(snippet) {
     row.addEventListener("click", () => onCrLineClick(lineNum));
     container.appendChild(row);
   });
+}
+
+function currentReviewChallenge() {
+  return crState.kind === "code" ? current.code_review : current.critical_reasoning;
 }
 
 function onCrLineClick(line) {
@@ -457,8 +509,9 @@ function onCrLineClick(line) {
       if (chip) chip.used = false;
     }
   }
-  renderCrSnippet(current.code_review.snippet);
-  renderCrBank();
+  const cfg = REVIEW_KIND_CONFIG[crState.kind];
+  renderCrSnippet(crState.kind, currentReviewChallenge()[cfg.textField]);
+  renderCrBank(crState.kind);
 }
 
 function onCrChipClick(reason) {
@@ -478,12 +531,14 @@ function onCrChipClick(reason) {
   // auto-advance to the next flagged line still waiting on a reason
   crState.active = crState.flagged.find((l) => !crState.reasons[l]) ?? null;
 
-  renderCrSnippet(current.code_review.snippet);
-  renderCrBank();
+  const cfg = REVIEW_KIND_CONFIG[crState.kind];
+  renderCrSnippet(crState.kind, currentReviewChallenge()[cfg.textField]);
+  renderCrBank(crState.kind);
 }
 
-function renderCrBank() {
-  const container = document.getElementById("code-review-reason-bank");
+function renderCrBank(kind) {
+  const cfg = REVIEW_KIND_CONFIG[kind];
+  const container = document.getElementById(`${cfg.elPrefix}-reason-bank`);
   container.innerHTML = "";
   crState.bank.forEach(({ reason, used }) => {
     const btn = document.createElement("button");
@@ -494,26 +549,27 @@ function renderCrBank() {
     btn.addEventListener("click", () => onCrChipClick(reason));
     container.appendChild(btn);
   });
-  const bankHint = document.getElementById("code-review-bank-hint");
+  const bankHint = document.getElementById(`${cfg.elPrefix}-bank-hint`);
   bankHint.classList.toggle("dim", crState.active === null);
 }
 
-document.getElementById("code-review-submit").addEventListener("click", async () => {
+async function submitReview(kind) {
+  const cfg = REVIEW_KIND_CONFIG[kind];
   if (crState.flagged.length === 0) {
     alert("Flag at least one line first.");
     return;
   }
   const matches = crState.flagged.filter((line) => crState.reasons[line]).map((line) => ({ line, reason: crState.reasons[line] }));
   try {
-    const result = await postJSON(`${API}/code-review/${current.day.id}/submit`, { matches });
-    current.day.code_review_completed = true;
-    current.day.code_review_correct = result.correct_count;
-    current.day.code_review_total = result.total;
+    const result = await postJSON(`${API}/${cfg.endpoint}/${current.day.id}/submit`, { matches });
+    current.day[cfg.completedField] = true;
+    current.day[cfg.correctField] = result.correct_count;
+    current.day[cfg.totalField] = result.total;
     crState.locked = true;
 
     // color each flagged line by whether it fully matched, and show every
     // real issue's explanation (including ones the user never flagged)
-    const container = document.getElementById("code-review-snippet");
+    const container = document.getElementById(`${cfg.elPrefix}-snippet`);
     const byLine = {};
     result.results.forEach((r) => { byLine[r.line] = r; });
     container.querySelectorAll(".cr-line").forEach((row) => {
@@ -528,12 +584,12 @@ document.getElementById("code-review-submit").addEventListener("click", async ()
       chip.textContent = r.reason;
       row.appendChild(chip);
     });
-    document.getElementById("code-review-submit").hidden = true;
-    document.getElementById("code-review-bank-hint").hidden = true;
-    document.getElementById("code-review-reason-bank").innerHTML = "";
-    document.getElementById("code-review-hint").textContent = "Already completed.";
+    document.getElementById(`${cfg.elPrefix}-submit`).hidden = true;
+    document.getElementById(`${cfg.elPrefix}-bank-hint`).hidden = true;
+    document.getElementById(`${cfg.elPrefix}-reason-bank`).innerHTML = "";
+    document.getElementById(`${cfg.elPrefix}-hint`).textContent = "Already completed.";
 
-    const resultBox = document.getElementById("code-review-result");
+    const resultBox = document.getElementById(`${cfg.elPrefix}-result`);
     resultBox.hidden = false;
     const explainLines = result.results.map((r) => `Line ${r.line}: ${r.reason} - ${r.explanation}`).join("\n\n");
     resultBox.textContent = `${result.correct_count}/${result.total} matched correctly.\n\n${explainLines}` +
@@ -544,7 +600,10 @@ document.getElementById("code-review-submit").addEventListener("click", async ()
   } catch (e) {
     alert(`Couldn't submit: ${e.message}`);
   }
-});
+}
+
+document.getElementById("code-review-submit").addEventListener("click", () => submitReview("code"));
+document.getElementById("critical-reasoning-submit").addEventListener("click", () => submitReview("reasoning"));
 
 // ---------- concept check ----------
 function renderConcept(concept, day) {
@@ -648,8 +707,9 @@ function showTab(name) {
   document.querySelectorAll(".node-btn").forEach((b) => b.classList.toggle("current", b.dataset.tab === name));
   document.getElementById("panel-quiz").hidden = name !== "quiz";
   document.getElementById("panel-code-review").hidden = name !== "code-review";
+  document.getElementById("panel-critical-reasoning").hidden = name !== "critical-reasoning";
   document.getElementById("panel-concept").hidden = name !== "concept";
-  if (current) renderNodes(current.day);
+  if (current) renderNodes(current.day, current.code_review ? "code" : "reasoning");
   setMascot(MASCOT_MSG[name] || "");
 }
 

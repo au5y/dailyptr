@@ -118,22 +118,39 @@ screenshots) plus the existing pytest suite.
     root; fixed with a helper that climbs back out based on the current
     path's depth (`main.py: _relative_to_root`), which also keeps working
     if the app is deployed under a reverse-proxy path prefix.
-- **System Design track (done)**: a third track, `system_design`
-  (`backend/app/content/system_design_bank.py`), following the same
-  self-checked pattern as `html_css` (`uses_sandbox: False` - submit a
-  free-text design attempt, then compare against a revealed reference
-  solution). Seeded with 29 entries per content type (8 easy/8 medium/8
-  hard/5 expert = 87 total) - deliberately deeper than the other two tracks
-  so a month of daily use has low repetition; expert-tier practice problems
-  are classic "design X" case studies (URL shortener, rate limiter, chat
-  system, news feed, distributed cache). The code editor falls back to
-  plain-text mode for this track (no C++/HTML highlighting misfiring on
-  prose) via a small mode lookup table in `app.js`. On every boot, the app
-  also backfills the past 30 days of `system_design` `Day` rows
-  (`day_service.backfill_history`, called from `main.py`'s lifespan) so its
-  calendar/history shows a month of already-open days immediately instead
-  of only creating them lazily on click - reuses the existing idempotent
-  `get_or_create_day`, no new selection logic needed.
+- **System Design track (done, scope broadening in progress)**: a third
+  track, `system_design` (`backend/app/content/system_design_bank.py`),
+  following the same self-checked pattern as `html_css` (`uses_sandbox:
+  False` - submit a free-text design attempt, then compare against a
+  revealed reference solution). Seeded with 29 entries per content type (8
+  easy/8 medium/8 hard/5 expert = 87 total) - deliberately deeper than the
+  other two tracks so a month of daily use has low repetition. The code
+  editor falls back to plain-text mode for this track (no C++/HTML
+  highlighting misfiring on prose) via a small mode lookup table in
+  `app.js`. On every boot, the app also backfills the past 30 days of
+  `system_design` `Day` rows (`day_service.backfill_history`, called from
+  `main.py`'s lifespan) so its calendar/history shows a month of
+  already-open days immediately instead of only creating them lazily on
+  click - reuses the existing idempotent `get_or_create_day`, no new
+  selection logic needed.
+  - **Reframed as the interdisciplinary track, not a software-architecture
+    track (decided 2026-08-20)**: today's 87 entries lean almost entirely
+    on classic software case studies (URL shortener, rate limiter, chat
+    system, news feed, distributed cache). Going forward this track's
+    content pool should broaden to general design/tradeoff thinking that
+    isn't software-specific - e.g. organizational design, product/process
+    design, physical/infrastructure systems, ops and incident-response
+    structure, economics/mechanism-design-flavored problems - alongside the
+    existing software case studies rather than replacing them outright.
+    Mechanically nothing changes for the quiz/concept content (still
+    free-text attempt vs. revealed reference solution); this is a
+    content-authoring direction, not a new feature - existing 87 quiz/concept
+    entries stay as-is until new non-software ones are written. The track's
+    *review step* did change (2026-08-20): `system_design` now uses Critical
+    Reasoning Review instead of Code Review (see the Phase 6 entry below),
+    which is itself already interdisciplinary content (org design, incident
+    postmortems, pricing strategy) rather than software case studies -
+    a first real step on this broadening, not the whole of it.
 - **Rebrand to "dailyptr"**: renamed the app-facing title/brand text
   (`frontend/index.html`, FastAPI `title=` in `main.py`), README/PLAN
   headings, and the Docker image names (`cpp-refresher-*` ->
@@ -308,14 +325,32 @@ Raised 2026-08-19: what else is worth practicing daily that isn't LeetCode-
 style algorithms, a trivia quiz, or open-ended free response? Rough ideas,
 roughly ordered by how cheaply they'd bolt onto what already exists:
 
-- **Code review challenges** (recommended next content type - no new
-  infra): show a small diff or snippet with 1-3 seeded bugs/smells
-  (correctness, security, a real anti-pattern), self-report which ones were
-  found, reveal an annotated answer key. Reuses the concept-check
-  self-grade UI/pattern almost exactly - just a diff instead of a prompt.
-- **Debugging challenges (decided 2026-08-19 - see Phase 7 for the spec)**:
-  a stack trace or failing-test output plus a broken snippet, multiple
-  choice on the root cause. Reuses the quiz UI/grading directly.
+- **Code review challenges (done, 2026-08-20 - see Phase 7)**: show a
+  snippet with 1-3 seeded issues, click-to-flag the buggy line(s) then
+  match each to a reason from an answer bank, objectively graded
+  server-side. Shipped as `models.CodeReviewChallenge` /
+  `routers/code_review.py`, covering all three tracks.
+- **Critical reasoning review (done, 2026-08-20)**: the non-code complement
+  to Code Review - same click-to-flag-then-match mechanic, but the "snippet"
+  is a paragraph of prose reasoning (a business justification, an incident
+  postmortem, a design rationale, an argument) seeded with 1-3 real flaws
+  (correlation/causation mixups, survivorship bias, unstated assumptions,
+  Simpson's paradox, etc.) instead of code bugs. Shipped as a genuinely
+  separate model/router (`models.CriticalReasoningChallenge`,
+  `routers/critical_reasoning.py`, `content/critical_reasoning_bank.py` -
+  8 entries, 2 per difficulty tier), not a variant of Code Review, matching
+  the codebase's one-model-per-content-type convention. Introduced
+  `config.TRACKS[track]["review_kind"]` ("code" vs "reasoning") as the
+  mechanism deciding which of the two a track's `Day` rows use as their
+  *required* review step - `Day.fully_completed` reads whichever one
+  applies. `system_design` switched from Code Review to Critical Reasoning
+  (its 8 old code-review entries, forced into pseudocode, were deleted from
+  `code_review_bank.py`); `cpp_core`/`html_css` are untouched. Frontend
+  (`app.js`) generalizes the render/submit logic behind a small
+  `REVIEW_KIND_CONFIG` map keyed by DOM-id-prefix/endpoint/Day-field-name
+  rather than duplicating the interaction code, since - unlike the backend,
+  which stayed a straightforward sibling router given the differing field
+  names - the click/match/submit behavior itself is identical either way.
 - **Log/metrics investigation challenges**: give a snippet of logs, timings,
   or a resource graph, ask what's actually wrong - basically what this
   session's own perf-debugging detour was (~11.5s code submissions traced
@@ -333,21 +368,32 @@ roughly ordered by how cheaply they'd bolt onto what already exists:
   have the user resolve/rebase it. Needs a real git sandbox per attempt,
   more infra than everything else on this list for a niche skill.
 
-## Phase 7 - Replace compiled coding problems with Debug challenges (spec, 2026-08-19; superseded - see below)
+## Phase 7 - Replaced compiled coding problems with Code Review challenges (done)
 
-**Update, later on 2026-08-19**: the user ended up asking for this to be
-built by Claude directly (in the same session, overriding this section's
-"Austin is implementing this himself" note), and picked **Phase 6's Code
-Review idea** instead of Debug challenges as the actual replacement -
-self-graded (spot 1-3 seeded bugs/smells in a snippet, self-report, reveal
-an annotated answer key), not auto-graded multiple choice on a root cause.
-Everything below is kept as the original spec/rationale for the sandbox
-deletion (still accurate - that part happened as described), but "Debug
-challenges" was not what got built; `models.CodeReviewChallenge`,
-`routers/code_review.py`, and `content/code_review_bank.py` are the real
-result, covering all three tracks (system_design's "snippet" is a short
-design note instead of literal code). See git history around this date for
-the actual commit.
+Decided 2026-08-19: writing/compiling C++ in the app was going away
+entirely, not staying alongside something new - "nix the writing of
+code... even with the formatting" was explicit. The Code tab's compiled
+LeetCode-style problems were retired, and with them the whole sandbox
+subsystem that existed to run them - which also happened to be the thing
+that made Railway/Render hosting awkward (`SANDBOX_MODE=docker` needs a
+host Docker socket that PaaS hosts don't give you) and the thing
+responsible for the ~10s-per-submission latency traced earlier that
+session. Removed: `models.CodingProblem`/`CodeSubmission`,
+`routers/coding.py`, `backend/app/sandbox/` (the whole package), the Code
+tab/CodeMirror/block-mode UI in `frontend/`, `docker-compose.yml`'s docker
+CLI install + `/var/run/docker.sock` mount + `SANDBOX_*` env vars +
+`sandbox-runner/` build context, and `config.py`'s `SANDBOX_*` settings and
+`uses_sandbox` (every track became the same shape once nothing compiles),
+plus a migration dropping the now-unused columns/tables.
+
+The replacement picked was **Phase 6's Code Review idea**, not the
+originally-sketched "Debug challenge" (multiple choice on a broken
+snippet's root cause) - self-graded at first (spot 1-3 seeded bugs/smells
+in a snippet, self-report, reveal an annotated answer key).
+`models.CodeReviewChallenge`, `routers/code_review.py`, and
+`content/code_review_bank.py` are the result, covering all three tracks
+(system_design's "snippet" is a short design note instead of literal
+code).
 
 **Update, 2026-08-20 - Code Review made objectively-graded, not self-reported
 (done)**: the self-graded version above didn't last a full day. New shape:
@@ -392,82 +438,6 @@ Two real bugs worth remembering (same spirit as Phase 1/2's lists):
   bind-mounted frontend updates live, which made this confusing to spot -
   new JS hitting old API responses, not an obviously-stale deploy).
 
-Decided 2026-08-19: writing/compiling C++ in the app is going away, not
-staying alongside something new - "nix the writing of code... even with the
-formatting" was explicit. This **replaces** the Code tab's compiled
-LeetCode-style problems with the Debug challenge idea from Phase 6: a
-broken snippet + failing output, multiple choice on the root cause,
-auto-graded like the quiz (not self-reported). Austin is implementing this
-himself with checkpoints, not me - this is the spec, not a build log.
-
-**Why this is a bigger deletion than it looks**: the Code tab isn't just
-content, it's the reason the sandbox subsystem exists at all. Retiring it
-means retiring that whole subsystem too - which also happens to be the
-thing that made Railway/Render hosting awkward (`SANDBOX_MODE=docker`
-needs a host Docker socket that PaaS hosts don't give you) and the thing
-responsible for the ~10s-per-submission latency traced earlier this
-session. Removing it is a real simplification, not just a content swap.
-
-**New model** (`backend/app/models.py`):
-```python
-class DebugChallenge(Base):
-    __tablename__ = "debug_challenges"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    track: Mapped[str] = mapped_column(String(32), index=True, default="cpp_core")
-    difficulty: Mapped[str] = mapped_column(String(16), index=True)
-    topic: Mapped[str] = mapped_column(String(64))
-    snippet: Mapped[str] = mapped_column(Text)              # the broken code
-    trace: Mapped[str] = mapped_column(Text, default="")    # stack trace / failing test output
-    choices: Mapped[list] = mapped_column(JSON)             # list[str] - root-cause options
-    correct_index: Mapped[int] = mapped_column(Integer)     # never sent to client until graded
-    explanation: Mapped[str] = mapped_column(Text, default="")
-```
-Deliberately QuizQuestion-shaped (same grading model: multiple choice,
-`correct_index` withheld pre-submit) but with two content fields
-(`snippet` + `trace`) instead of one.
-
-**`Day` model**: `coding_problem_id`/`coding_completed`/`coding_attempts`
-are replaced by `debug_challenge_id` (FK) and `debug_completed` - no
-"attempts" counter, since like quiz/concept this is graded once, not
-retried in place (retry is already handled at the day level via "Reset
-day"). `fully_completed` becomes `quiz_completed and debug_completed and
-concept_completed`.
-
-**Open design question - decide before Checkpoint 3**: `html_css` and
-`system_design` currently use a *different* self-checked "coding" flow
-(submit an attempt, reveal `reference_solution` to compare against - no
-compiler involved for them already). Does Debug replace that too, or do
-those two tracks keep their current self-checked review step under a
-different name/framing? Nothing here mandates one answer - it's a real
-call about what those two tracks are for.
-
-**Suggested checkpoints** (in dependency order - each should leave
-`pytest tests/` green before moving to the next):
-1. **Additive only**: `DebugChallenge` model, an Alembic migration for it,
-   a small seed bank (`content/debug_bank.py`, `cpp_core` only to start -
-   maybe 2 entries per difficulty tier, expand later), `DebugChallengeOut`/
-   `DebugSubmitIn`/`DebugSubmitOut` schemas, `routers/debug.py` (mirror
-   `routers/quiz.py`'s shape almost exactly), `scoring.points_for_debug()`.
-   Nothing on `Day` changes yet - this proves the new piece works in
-   isolation before anything is wired in or removed.
-2. **Wire it in**: add `debug_challenge_id`/`debug_completed` to `Day`
-   (another migration), update `day_service.py`'s content-picking to also
-   pick a debug challenge, update `fully_completed`, add the frontend tab
-   (reuse the Quiz tab's rendering pattern - it's the closest existing
-   shape). At this point Debug and Code both exist side by side - useful
-   for comparing before deleting anything.
-3. **Remove Code**, resolving the open design question above first:
-   `models.CodingProblem`/`CodeSubmission`, `routers/coding.py`,
-   `backend/app/sandbox/` (the whole package), the Code tab/CodeMirror/
-   block-mode UI in `frontend/`, `docker-compose.yml`'s docker CLI install
-   + `/var/run/docker.sock` mount + `SANDBOX_*` env vars +
-   `sandbox-runner/` build context, and `config.py`'s `SANDBOX_*` settings
-   and `uses_sandbox` (every track becomes the same shape once nothing
-   compiles). Migration to drop the now-unused columns/tables.
-4. Re-seed: retire `content/coding_bank.py`/`cpp_backend_bank.py`, decide
-   what (if anything) `html_css`/`system_design` need per the open question
-   above.
-
 ## Phase 8 - Guest mode: local-only until sign-in (spec, 2026-08-19)
 
 Decided 2026-08-19: guest ("Play offline") accounts currently create a real
@@ -481,7 +451,7 @@ and the frontend's state management all touch it), so it's a spec, not a
 same-session build.
 
 **The key fact that makes this tractable**: a day's content selection
-(which quiz questions / debug challenge / concept check get picked) is
+(which quiz questions / code review challenge / concept check get picked) is
 already a *pure function* of `(date, track)` - `day_service.py`'s RNG is
 seeded from `target_date.toordinal()` and the track name only, never from
 `user_id`. Every user, guest or not, sees identical content for the same
@@ -494,13 +464,13 @@ that challenge does.
   picking logic `day_service.py` already has, exposed without writing a
   `Day` row - e.g. a variant that returns the same `ChallengeOut` shape
   (or close to it) keyed on `(date, track)` alone, no `user_id` involved.
-- **Stateless grading for guests**: quiz/debug grading is already "look up
-  `correct_index` from the content bank, compare, compute points" - that
-  logic doesn't structurally need a `Day` row either, just needs splitting
+- **Stateless grading for guests**: quiz grading is already "look up
+  `correct_index` from the content bank, compare, compute points," and code
+  review grading is the same idea keyed on `{line, reason}` pairs instead of
+  an index - neither structurally needs a `Day` row, just needs splitting
   from the "now persist it" half that currently follows it in each router.
-  Concept-check grading is already self-reported/trusted today (no
-  change in trust model there). Whatever Phase 7 leaves as the "coding"
-  equivalent should get the same treatment.
+  Concept-check grading is already self-reported/trusted today (no change
+  in trust model there).
 - **Client-side progress store** (`frontend/app.js`): a
   `localStorage`-backed object, not actual cookies (cookies are sent on
   every request and capped around 4KB - localStorage is the right tool for
@@ -518,7 +488,7 @@ that challenge does.
   endpoint that replays it into real `Day`/grading calls for the
   now-authenticated user. **Recompute correctness/points server-side from
   the content bank rather than trusting the client's claimed results** for
-  anything that has a real answer key (quiz, debug) - the same way
+  anything that has a real answer key (quiz, code review) - the same way
   submissions are graded live today. This isn't a new trust hole: it's the
   same trust model concept-checks already use (self-reported), just applied
   to a batch of past days instead of one live submission.

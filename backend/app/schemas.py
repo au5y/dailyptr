@@ -26,6 +26,16 @@ class CodeReviewChallengeOut(BaseModel):
     reason_bank: list[str]
 
 
+class CriticalReasoningChallengeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    passage: str
+    # Same shuffled-answer-bank shape as CodeReviewChallengeOut.reason_bank.
+    reason_bank: list[str]
+
+
 class ConceptCheckOut(BaseModel):
     # protected_namespaces=() silences Pydantic's "model_*" field name warning -
     # model_answer here means "the reference answer", nothing to do with ML models.
@@ -42,6 +52,7 @@ class ConceptCheckOut(BaseModel):
 class TrackOut(BaseModel):
     id: str
     name: str
+    review_kind: str  # "code" or "reasoning" - see config.TRACKS
     subscribed: bool = False
 
 
@@ -67,6 +78,9 @@ class DayOut(BaseModel):
     code_review_completed: bool
     code_review_correct: int
     code_review_total: int
+    critical_reasoning_completed: bool
+    critical_reasoning_correct: int
+    critical_reasoning_total: int
     concept_completed: bool
     concept_self_rating: bool
     points_earned: float
@@ -79,7 +93,10 @@ class DayOut(BaseModel):
 class ChallengeOut(BaseModel):
     day: DayOut
     quiz: list[QuizQuestionOut]
-    code_review: CodeReviewChallengeOut
+    # Exactly one of these two is populated, depending on the day's track's
+    # review_kind (see config.TRACKS) - the other is null.
+    code_review: CodeReviewChallengeOut | None = None
+    critical_reasoning: CriticalReasoningChallengeOut | None = None
     concept: ConceptCheckOut
 
 
@@ -148,6 +165,31 @@ class CodeReviewSubmitOut(BaseModel):
     correct_count: int
     total: int
     results: list[CodeReviewIssueResult]
+    points_awarded: float
+    milestones_hit: list[int] = []
+
+
+class CriticalReasoningMatchIn(BaseModel):
+    line: int
+    reason: str
+
+
+class CriticalReasoningSubmitIn(BaseModel):
+    matches: list[CriticalReasoningMatchIn]
+
+
+class CriticalReasoningIssueResult(BaseModel):
+    line: int
+    reason: str
+    explanation: str
+    line_found: bool
+    reason_correct: bool
+
+
+class CriticalReasoningSubmitOut(BaseModel):
+    correct_count: int
+    total: int
+    results: list[CriticalReasoningIssueResult]
     points_awarded: float
     milestones_hit: list[int] = []
 

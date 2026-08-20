@@ -138,6 +138,20 @@
               </span>
               <span class="node-label">Code Review</span>
             </button>
+            <button class="node-btn" data-tab="critical-reasoning">
+              <span class="node-circle" id="node-critical-reasoning">
+                <svg class="node-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="var(--bg)" stroke-width="2.4" />
+                  <line x1="15.3" y1="15.3" x2="21" y2="21" stroke="var(--bg)" stroke-width="2.6"
+                    stroke-linecap="round" />
+                </svg>
+                <svg class="node-check" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 13l4 4L19 7" fill="none" stroke="var(--text)" stroke-width="3.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                </svg>
+              </span>
+              <span class="node-label">Critical Reasoning</span>
+            </button>
             <button class="node-btn" data-tab="concept">
               <span class="node-circle" id="node-concept">
                 <svg class="node-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
@@ -173,6 +187,22 @@
             </div>
 
             <div id="code-review-result" class="panel-result" hidden></div>
+          </section>
+
+          <section class="blob-panel" id="panel-critical-reasoning" hidden>
+            <h2 id="critical-reasoning-title" style="margin:0 0 8px; font-family:var(--font-display); font-size:1.15rem;">
+            </h2>
+            <p class="hint" id="critical-reasoning-hint">Click the line(s) with a flaw in the reasoning (1-3), then tap a reason below to match it.</p>
+            <div id="critical-reasoning-snippet" class="code-snippet cr-lines"></div>
+
+            <p class="hint" id="critical-reasoning-bank-hint">Answer bank - tap a flagged line above, then tap its reason:</p>
+            <div id="critical-reasoning-reason-bank" class="reason-bank"></div>
+
+            <div class="btn-row">
+              <button id="critical-reasoning-submit" class="btn-chunky btn-green">Submit review</button>
+            </div>
+
+            <div id="critical-reasoning-result" class="panel-result" hidden></div>
           </section>
 
           <section class="blob-panel" id="panel-concept" hidden>

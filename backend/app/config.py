@@ -33,7 +33,7 @@ DIFFICULTY_POINT_MULTIPLIER = {
 }
 
 BASE_POINTS_PER_QUIZ_QUESTION = 10
-BASE_POINTS_PER_CODE_REVIEW = 50
+BASE_POINTS_PER_CODE_REVIEW = 50  # also the base value for Critical Reasoning Review - same formula, see scoring.points_for_code_review
 BASE_POINTS_PER_CONCEPT_CHECK = 15
 ON_TIME_STREAK_BONUS = 5  # awarded only when a day is completed on its own date
 
@@ -52,11 +52,18 @@ QUESTIONS_PER_DAY = 3
 # its own Day rows (keyed by (date, track)), its own streak/points via
 # scoring.compute_stats(db, track). Every track is self-checked (no compiler
 # involved) - see routers/code_review.py.
+#
+# "review_kind" picks which required review step a track uses - "code"
+# (Code Review, routers/code_review.py) for tracks with literal code, or
+# "reasoning" (Critical Reasoning Review, routers/critical_reasoning.py) for
+# tracks that are prose/tradeoff-thinking-first. A Day only ever populates
+# the one FK/completion trio matching its track's review_kind - see
+# models.Day.fully_completed and day_service.py.
 DEFAULT_TRACK = "cpp_core"
 TRACKS = {
-    "cpp_core": {"name": "C++ Core"},
-    "html_css": {"name": "Learning HTML/CSS"},
-    "system_design": {"name": "System Design"},
+    "cpp_core": {"name": "C++ Core", "review_kind": "code"},
+    "html_css": {"name": "Learning HTML/CSS", "review_kind": "code"},
+    "system_design": {"name": "System Design", "review_kind": "reasoning"},
 }
 
 DATABASE_URL = os.environ.get(

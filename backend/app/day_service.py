@@ -29,17 +29,20 @@ def get_or_create_day(db: Session, user: models.User, target_date: date_type, tr
     track_salt = sum(ord(c) for c in track)
     rng = random.Random(target_date.toordinal() * 1000 + track_salt)  # deterministic per (date, track)
 
+    review_kind = config.TRACKS[track]["review_kind"]
+    review_model = models.CodeReviewChallenge if review_kind == "code" else models.CriticalReasoningChallenge
+
     quiz_pool = db.query(models.QuizQuestion).filter(models.QuizQuestion.difficulty == difficulty, models.QuizQuestion.track == track).all()
-    code_review_pool = db.query(models.CodeReviewChallenge).filter(models.CodeReviewChallenge.difficulty == difficulty, models.CodeReviewChallenge.track == track).all()
+    review_pool = db.query(review_model).filter(review_model.difficulty == difficulty, review_model.track == track).all()
     concept_pool = db.query(models.ConceptCheck).filter(models.ConceptCheck.difficulty == difficulty, models.ConceptCheck.track == track).all()
 
-    if not quiz_pool or not code_review_pool or not concept_pool:
+    if not quiz_pool or not review_pool or not concept_pool:
         raise HTTPException(
             status_code=500,
             detail=f"Content bank is missing '{difficulty}' entries for track '{track}' - run seeding first.",
         )
 
-    quiz_ids, code_review_challenge_id, concept_check_id = _pick_day_content(rng, quiz_pool, code_review_pool, concept_pool)
+    quiz_ids, review_challenge_id, concept_check_id = _pick_day_content(rng, quiz_pool, review_pool, concept_pool)
 
     day = models.Day(
         user_id=user.id,
@@ -48,7 +51,8 @@ def get_or_create_day(db: Session, user: models.User, target_date: date_type, tr
         weekday=weekday,
         difficulty=difficulty,
         quiz_question_ids=quiz_ids,
-        code_review_challenge_id=code_review_challenge_id,
+        code_review_challenge_id=review_challenge_id if review_kind == "code" else None,
+        critical_reasoning_challenge_id=review_challenge_id if review_kind == "reasoning" else None,
         concept_check_id=concept_check_id,
         quiz_total=len(quiz_ids),
     )
@@ -86,10 +90,10 @@ def start_date_for(db: Session, user: models.User, track: str) -> date_type:
     return subscription.subscribed_at if subscription else user.created_at.date()
 
 
-def _pick_day_content(rng: random.Random, quiz_pool: list, code_review_pool: list, concept_pool: list) -> tuple[list[int], int, int]:
+def _pick_day_content(rng: random.Random, quiz_pool: list, review_pool: list, concept_pool: list) -> tuple[list[int], int, int]:
     n_quiz = min(config.QUESTIONS_PER_DAY, len(quiz_pool))
     quiz_ids = [q.id for q in rng.sample(quiz_pool, n_quiz)]
-    return quiz_ids, rng.choice(code_review_pool).id, rng.choice(concept_pool).id
+    return quiz_ids, rng.choice(review_pool).id, rng.choice(concept_pool).id
 
 
 def backfill_history(db: Session, user: models.User, track: str, days: int = 30) -> None:
@@ -120,6 +124,9 @@ def backfill_history(db: Session, user: models.User, track: str, days: int = 30)
     if not missing_dates:
         return
 
+    review_kind = config.TRACKS[track]["review_kind"]
+    review_model = models.CodeReviewChallenge if review_kind == "code" else models.CriticalReasoningChallenge
+
     pools_by_difficulty: dict[str, tuple[list, list, list]] = {}
     track_salt = sum(ord(c) for c in track)
     new_days = []
@@ -129,18 +136,18 @@ def backfill_history(db: Session, user: models.User, track: str, days: int = 30)
 
         if difficulty not in pools_by_difficulty:
             quiz_pool = db.query(models.QuizQuestion).filter(models.QuizQuestion.difficulty == difficulty, models.QuizQuestion.track == track).all()
-            code_review_pool = db.query(models.CodeReviewChallenge).filter(models.CodeReviewChallenge.difficulty == difficulty, models.CodeReviewChallenge.track == track).all()
+            review_pool = db.query(review_model).filter(review_model.difficulty == difficulty, review_model.track == track).all()
             concept_pool = db.query(models.ConceptCheck).filter(models.ConceptCheck.difficulty == difficulty, models.ConceptCheck.track == track).all()
-            if not quiz_pool or not code_review_pool or not concept_pool:
+            if not quiz_pool or not review_pool or not concept_pool:
                 raise HTTPException(
                     status_code=500,
                     detail=f"Content bank is missing '{difficulty}' entries for track '{track}' - run seeding first.",
                 )
-            pools_by_difficulty[difficulty] = (quiz_pool, code_review_pool, concept_pool)
-        quiz_pool, code_review_pool, concept_pool = pools_by_difficulty[difficulty]
+            pools_by_difficulty[difficulty] = (quiz_pool, review_pool, concept_pool)
+        quiz_pool, review_pool, concept_pool = pools_by_difficulty[difficulty]
 
         rng = random.Random(target_date.toordinal() * 1000 + track_salt)  # same seeding as get_or_create_day
-        quiz_ids, code_review_challenge_id, concept_check_id = _pick_day_content(rng, quiz_pool, code_review_pool, concept_pool)
+        quiz_ids, review_challenge_id, concept_check_id = _pick_day_content(rng, quiz_pool, review_pool, concept_pool)
 
         new_days.append(models.Day(
             user_id=user.id,
@@ -149,7 +156,8 @@ def backfill_history(db: Session, user: models.User, track: str, days: int = 30)
             weekday=weekday,
             difficulty=difficulty,
             quiz_question_ids=quiz_ids,
-            code_review_challenge_id=code_review_challenge_id,
+            code_review_challenge_id=review_challenge_id if review_kind == "code" else None,
+            critical_reasoning_challenge_id=review_challenge_id if review_kind == "reasoning" else None,
             concept_check_id=concept_check_id,
             quiz_total=len(quiz_ids),
         ))

@@ -10,6 +10,7 @@ from . import models
 from .content.quiz_bank import QUIZ_QUESTIONS
 from .content.concept_bank import CONCEPT_CHECKS
 from .content.code_review_bank import CODE_REVIEW_CHALLENGES
+from .content.critical_reasoning_bank import CRITICAL_REASONING_CHALLENGES
 from .content.cpp_backend_bank import CPP_BACKEND_QUIZ, CPP_BACKEND_CONCEPT
 from .content.html_css_bank import HTML_CSS_QUIZ, HTML_CSS_CONCEPT
 from .content.system_design_bank import SYSTEM_DESIGN_QUIZ, SYSTEM_DESIGN_CONCEPT
@@ -24,6 +25,9 @@ QUIZ_SOURCES = [
 ]
 CODE_REVIEW_SOURCES = [
     (items, track) for track, items in CODE_REVIEW_CHALLENGES.items()
+]
+CRITICAL_REASONING_SOURCES = [
+    (items, track) for track, items in CRITICAL_REASONING_CHALLENGES.items()
 ]
 CONCEPT_SOURCES = [
     (CONCEPT_CHECKS, "cpp_core"), (CPP_BACKEND_CONCEPT, "cpp_core"), (HTML_CSS_CONCEPT, "html_css"),
@@ -47,6 +51,14 @@ def seed_content(db: Session) -> None:
             if (item["track"], item["title"]) in existing_titles:
                 continue
             db.add(models.CodeReviewChallenge(**item))
+
+    existing_reasoning_titles = {(t, title) for (t, title) in db.query(models.CriticalReasoningChallenge.track, models.CriticalReasoningChallenge.title).all()}
+    for items, default_track in CRITICAL_REASONING_SOURCES:
+        for item in items:
+            item = {**item, "track": item.get("track", default_track)}
+            if (item["track"], item["title"]) in existing_reasoning_titles:
+                continue
+            db.add(models.CriticalReasoningChallenge(**item))
 
     existing_prompts = {(t, p) for (t, p) in db.query(models.ConceptCheck.track, models.ConceptCheck.prompt).all()}
     for items, default_track in CONCEPT_SOURCES:

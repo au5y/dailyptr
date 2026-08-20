@@ -3,6 +3,7 @@ from datetime import datetime, date as date_type
 from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, JSON, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from . import config
 from .database import Base
 
 
@@ -96,6 +97,28 @@ class CodeReviewChallenge(Base):
     distractor_reasons: Mapped[list] = mapped_column(JSON, default=list)  # list[str]
 
 
+class CriticalReasoningChallenge(Base):
+    """The non-code sibling of CodeReviewChallenge: a paragraph of prose
+    reasoning (a business case, incident postmortem, design rationale)
+    seeded with 1-3 real reasoning flaws (correlation/causation mixups,
+    survivorship bias, unstated assumptions, base-rate neglect, etc)
+    instead of code bugs. Same click-a-line/match-a-reason mechanic and
+    grading shape as CodeReviewChallenge - see routers/critical_reasoning.py.
+    Used as the required review step (see config.TRACKS[track]["review_kind"])
+    for tracks that aren't about literal code, currently just system_design."""
+
+    __tablename__ = "critical_reasoning_challenges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    track: Mapped[str] = mapped_column(String(32), index=True, default="system_design")
+    difficulty: Mapped[str] = mapped_column(String(16), index=True)
+    topic: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(String(128))
+    passage: Mapped[str] = mapped_column(Text)  # the flawed reasoning to review
+    issues: Mapped[list] = mapped_column(JSON)  # list[{"line", "reason", "explanation"}]
+    distractor_reasons: Mapped[list] = mapped_column(JSON, default=list)  # list[str]
+
+
 class ConceptCheck(Base):
     __tablename__ = "concept_checks"
 
@@ -121,7 +144,11 @@ class Day(Base):
     difficulty: Mapped[str] = mapped_column(String(16))
 
     quiz_question_ids: Mapped[list] = mapped_column(JSON)  # list[int]
-    code_review_challenge_id: Mapped[int] = mapped_column(ForeignKey("code_review_challenges.id"))
+    # Exactly one of code_review_challenge_id / critical_reasoning_challenge_id
+    # is populated for a given Day, depending on its track's review_kind (see
+    # config.TRACKS) - the other stays permanently null for that track.
+    code_review_challenge_id: Mapped[int | None] = mapped_column(ForeignKey("code_review_challenges.id"), nullable=True)
+    critical_reasoning_challenge_id: Mapped[int | None] = mapped_column(ForeignKey("critical_reasoning_challenges.id"), nullable=True)
     concept_check_id: Mapped[int] = mapped_column(ForeignKey("concept_checks.id"))
 
     quiz_completed: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -137,6 +164,10 @@ class Day(Base):
     code_review_correct: Mapped[int] = mapped_column(Integer, default=0)
     code_review_total: Mapped[int] = mapped_column(Integer, default=0)
 
+    critical_reasoning_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    critical_reasoning_correct: Mapped[int] = mapped_column(Integer, default=0)
+    critical_reasoning_total: Mapped[int] = mapped_column(Integer, default=0)
+
     concept_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     concept_self_rating: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -146,4 +177,9 @@ class Day(Base):
 
     @property
     def fully_completed(self) -> bool:
-        return self.quiz_completed and self.code_review_completed and self.concept_completed
+        review_done = (
+            self.code_review_completed
+            if config.TRACKS[self.track]["review_kind"] == "code"
+            else self.critical_reasoning_completed
+        )
+        return self.quiz_completed and review_done and self.concept_completed

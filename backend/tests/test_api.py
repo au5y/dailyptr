@@ -47,6 +47,19 @@ def _correct_code_review_matches(day_id: int) -> list[dict]:
         db.close()
 
 
+def _correct_critical_reasoning_matches(day_id: int) -> list[dict]:
+    """[{"line", "reason"}, ...] for every issue in a day's critical reasoning
+    challenge, looked up straight from the DB, same idea as
+    _correct_code_review_matches."""
+    db = SessionLocal()
+    try:
+        day = db.get(models.Day, day_id)
+        challenge = db.get(models.CriticalReasoningChallenge, day.critical_reasoning_challenge_id)
+        return [{"line": issue["line"], "reason": issue["reason"]} for issue in challenge.issues]
+    finally:
+        db.close()
+
+
 def test_today_endpoint_returns_a_full_challenge(client):
     resp = client.get("/api/today")
     assert resp.status_code == 200
@@ -170,6 +183,35 @@ def test_code_review_wrong_matches_award_no_points(client):
     # resubmitting is rejected, same as the quiz
     resp2 = client.post(f"/api/code-review/{day_id}/submit", json={"matches": []})
     assert resp2.status_code == 400
+
+
+def test_system_design_day_uses_critical_reasoning_not_code_review(client):
+    """system_design's review_kind is "reasoning" (see config.TRACKS) - its
+    days should carry a critical_reasoning challenge, not a code_review one,
+    and completing it (not code review) should be what finishes the day."""
+    d = date(2024, 4, 1)  # untouched by other tests
+    challenge = client.get(f"/api/day/{d.isoformat()}?track=system_design").json()
+    day_id = challenge["day"]["id"]
+    assert challenge["code_review"] is None
+    assert "id" in challenge["critical_reasoning"]
+
+    _answer_quiz_correctly(client, day_id)
+    matches = _correct_critical_reasoning_matches(day_id)
+    cr_resp = client.post(f"/api/critical-reasoning/{day_id}/submit", json={"matches": matches})
+    assert cr_resp.status_code == 200, cr_resp.text
+    cr_result = cr_resp.json()
+    assert cr_result["correct_count"] == cr_result["total"] == len(matches)
+    assert cr_result["points_awarded"] > 0
+
+    concept_resp = client.post(f"/api/concept/{day_id}/submit", json={"self_rating_correct": True})
+    assert concept_resp.status_code == 200, concept_resp.text
+
+    refreshed = client.get(f"/api/day/{d.isoformat()}?track=system_design").json()
+    assert refreshed["day"]["fully_completed"] is True
+    assert refreshed["day"]["critical_reasoning_completed"] is True
+    # code review's endpoint should refuse a track that doesn't use it
+    other_day_id = client.get(f"/api/day/{(d + timedelta(days=1)).isoformat()}?track=system_design").json()["day"]["id"]
+    assert client.post(f"/api/code-review/{other_day_id}/submit", json={"matches": []}).status_code == 400
 
 
 def _logged_in_client() -> TestClient:

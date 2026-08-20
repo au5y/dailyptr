@@ -7,35 +7,35 @@ from .. import config, models, schemas, scoring
 from ..auth import get_current_user
 from ..database import get_db
 
-router = APIRouter(prefix="/api/code-review", tags=["code_review"])
+router = APIRouter(prefix="/api/critical-reasoning", tags=["critical_reasoning"])
 
 
-def build_challenge_out(challenge: models.CodeReviewChallenge) -> schemas.CodeReviewChallengeOut:
+def build_challenge_out(challenge: models.CriticalReasoningChallenge) -> schemas.CriticalReasoningChallengeOut:
     """Shuffles the real reason for each issue together with the challenge's
     decoy reasons into the answer bank the client picks matches from."""
     reason_bank = [issue["reason"] for issue in challenge.issues] + list(challenge.distractor_reasons)
     random.shuffle(reason_bank)
-    return schemas.CodeReviewChallengeOut(
+    return schemas.CriticalReasoningChallengeOut(
         id=challenge.id,
         title=challenge.title,
-        snippet=challenge.snippet,
+        passage=challenge.passage,
         reason_bank=reason_bank,
     )
 
 
-@router.post("/{day_id}/submit", response_model=schemas.CodeReviewSubmitOut)
-def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+@router.post("/{day_id}/submit", response_model=schemas.CriticalReasoningSubmitOut)
+def submit_critical_reasoning(day_id: int, body: schemas.CriticalReasoningSubmitIn, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     day = db.get(models.Day, day_id)
     if not day or day.user_id != user.id:
         raise HTTPException(status_code=404, detail="Day not found")
-    if config.TRACKS[day.track]["review_kind"] != "code":
-        raise HTTPException(status_code=400, detail="This track doesn't use Code Review.")
-    if day.code_review_completed:
-        raise HTTPException(status_code=400, detail="Code review already completed for this day")
+    if config.TRACKS[day.track]["review_kind"] != "reasoning":
+        raise HTTPException(status_code=400, detail="This track doesn't use Critical Reasoning Review.")
+    if day.critical_reasoning_completed:
+        raise HTTPException(status_code=400, detail="Critical reasoning review already completed for this day")
 
-    challenge = db.get(models.CodeReviewChallenge, day.code_review_challenge_id)
+    challenge = db.get(models.CriticalReasoningChallenge, day.critical_reasoning_challenge_id)
     if not challenge:
-        raise HTTPException(status_code=500, detail="Code review challenge missing from content bank")
+        raise HTTPException(status_code=500, detail="Critical reasoning challenge missing from content bank")
 
     # Last match submitted for a given line wins, mirroring how re-picking a
     # quiz choice overwrites the earlier one.
@@ -48,7 +48,7 @@ def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Sessio
         reason_correct = line_found and submitted[issue["line"]] == issue["reason"]
         if line_found and reason_correct:
             correct_count += 1
-        results.append(schemas.CodeReviewIssueResult(
+        results.append(schemas.CriticalReasoningIssueResult(
             line=issue["line"],
             reason=issue["reason"],
             explanation=issue["explanation"],
@@ -57,9 +57,9 @@ def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Sessio
         ))
 
     total = len(challenge.issues)
-    day.code_review_completed = True
-    day.code_review_correct = correct_count
-    day.code_review_total = total
+    day.critical_reasoning_completed = True
+    day.critical_reasoning_correct = correct_count
+    day.critical_reasoning_total = total
 
     points_awarded = scoring.points_for_code_review(correct_count, total, day.difficulty)
     day.points_earned += points_awarded
@@ -67,7 +67,7 @@ def submit_code_review(day_id: int, body: schemas.CodeReviewSubmitIn, db: Sessio
     points_awarded += bonus
     db.commit()
 
-    return schemas.CodeReviewSubmitOut(
+    return schemas.CriticalReasoningSubmitOut(
         correct_count=correct_count,
         total=total,
         results=results,
