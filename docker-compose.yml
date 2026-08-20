@@ -19,7 +19,8 @@ services:
 
   web:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     image: dailyptr-web:latest
     container_name: dailyptr-web
     ports:
