@@ -467,4 +467,267 @@ HTML_CSS_CONCEPT = [
             "component-level responsiveness instead of only page-level."
         ),
     },
+    {
+        "difficulty": "easy",
+        "topic": "CSS Selectors",
+        "prompt": "What's the difference between a class selector like `.btn` and an attribute selector like `[type=\"submit\"]`?",
+        "model_answer": (
+            "A class selector matches any element carrying that class in its `class` attribute, regardless of "
+            "tag or any other attribute - you have to explicitly add the class to every element you want styled. "
+            "An attribute selector matches based on an existing HTML attribute's presence or value, with no "
+            "extra class needed - `[type=\"submit\"]` matches every `<input type=\"submit\">` (or `<button "
+            "type=\"submit\">`) on the page automatically, because that attribute is already meaningful markup, "
+            "not styling-only metadata you'd need to add. Attribute selectors are especially handy for styling "
+            "form controls or elements you don't control the markup of, based on properties they already have."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "CSS Box Model",
+        "prompt": "What's the difference between `margin` and `padding`?",
+        "model_answer": (
+            "`padding` is space INSIDE an element's border, between the border and its content - it's part of "
+            "the element itself, shares the element's background color, and clicking/hovering over padding "
+            "still counts as interacting with the element. `margin` is space OUTSIDE the border, between this "
+            "element and its neighbors - it's transparent (shows whatever is behind it), and clicking in the "
+            "margin area does not count as clicking the element. A quick way to tell them apart visually: give "
+            "an element a background color - padding is inside that colored area, margin is the gap outside it "
+            "where the background color doesn't reach."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "HTML Attributes",
+        "prompt": "What does a boolean HTML attribute like `disabled` or `checked` do differently from a normal attribute like `class` or `href`?",
+        "model_answer": (
+            "A normal attribute's meaning comes from its VALUE (`href=\"/cart\"` means 'link to /cart'). A "
+            "boolean attribute's meaning comes purely from its PRESENCE or ABSENCE - the element is disabled/"
+            "checked if the attribute is there at all, regardless of what (if anything) it's set to. That's why "
+            "you'll see `<input disabled>`, `<input disabled=\"disabled\">`, and even `<input disabled=\"false\">` "
+            "all mean the SAME thing (disabled) - the string \"false\" is not treated specially, the attribute's "
+            "mere presence turns the behavior on. To turn a boolean attribute off you have to remove it "
+            "entirely (`element.removeAttribute('disabled')` in JS), not set it to a falsy-looking value."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "CSS Colors",
+        "prompt": "What's the practical difference between specifying a color as hex (`#2b6cff`), `rgb()`, and `hsl()`, and when is `hsl()` more convenient?",
+        "model_answer": (
+            "All three ultimately describe the same color space (or close to it) - hex and `rgb()` both specify "
+            "red/green/blue channel intensities (hex is just a more compact, less human-readable encoding of "
+            "the same numbers), while `hsl()` specifies hue (a position on the color wheel, 0-360deg), "
+            "saturation, and lightness. `hsl()` is more convenient when you want to programmatically derive "
+            "related colors: to make a color lighter or darker, you just change the lightness percentage and "
+            "the hue/saturation (the actual 'color') stays untouched, whereas doing the same thing in hex/rgb "
+            "means recalculating all three channels by hand or trial and error. This makes hsl() a natural fit "
+            "for generating a full shade palette (hover states, disabled states) from one base hue."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "HTML Semantics",
+        "prompt": "What's the difference between `<ol>` and `<ul>`, and does it matter beyond which bullet style is shown?",
+        "model_answer": (
+            "`<ul>` (unordered list) is for a set of items where order doesn't carry meaning - swapping any two "
+            "items wouldn't change what the list communicates (e.g. a list of product features). `<ol>` "
+            "(ordered list) is for items where sequence matters - step-by-step instructions, ranked results, a "
+            "table of contents - and it matters beyond styling: screen readers announce an `<ol>`'s items with "
+            "their position ('item 2 of 5'), which is meaningful information for ordered content and misleading "
+            "if applied to an unordered set, or missing if an actually-ordered sequence is marked up as `<ul>` "
+            "just because someone removed the numbers visually with CSS."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Layout",
+        "prompt": "What's the difference between `display: inline`, `inline-block`, and `block`?",
+        "model_answer": (
+            "`block` elements start on a new line and take the full available width by default, and DO respect "
+            "explicit `width`/`height`/vertical `margin`. `inline` elements flow within a line of text alongside "
+            "other content, don't start a new line, and ignore `width`/`height` and top/bottom margin entirely "
+            "(only left/right margin/padding actually push neighboring inline content). `inline-block` is a "
+            "hybrid: it flows inline like `inline` (sits alongside other inline content, doesn't force a new "
+            "line) but respects `width`/`height` and all four margins like `block` - useful for something like a "
+            "row of same-line badges that still need an explicit size."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Selectors",
+        "prompt": "What's the difference between the descendant combinator (a space, e.g. `.card p`) and the adjacent sibling combinator (`+`, e.g. `h2 + p`)?",
+        "model_answer": (
+            "The descendant combinator (space) matches an element nested ANYWHERE inside another, at any depth "
+            "- `.card p` matches a `<p>` no matter how many wrapper elements sit between it and `.card`. The "
+            "adjacent sibling combinator (`+`) matches an element that is the IMMEDIATE next sibling of "
+            "another, sharing the same parent - `h2 + p` only matches a `<p>` that comes directly after an "
+            "`<h2>` with no other element in between (text nodes don't count, but another element does), and it "
+            "says nothing about nesting depth since siblings are already at the same level by definition. A "
+            "related one, `~` (general sibling), matches any later sibling, not just the immediately adjacent "
+            "one."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "HTML Forms",
+        "prompt": "What's the difference between `<button type=\"submit\">` and `<button type=\"button\">`, and why does forgetting to set `type` matter?",
+        "model_answer": (
+            "`type=\"submit\"` (the DEFAULT if `type` is omitted) submits the enclosing `<form>` when clicked - "
+            "triggering native validation and a page navigation/fetch, exactly like pressing Enter in a text "
+            "field. `type=\"button\"` does nothing on its own; it's meant for JS-driven actions (via an "
+            "onclick/event listener) that shouldn't submit the form, like an 'add another item' button inside a "
+            "multi-field form. Because submit is the default, a `<button>` inside a `<form>` with no explicit "
+            "`type` that was only meant to trigger some JS behavior will ALSO submit the form when clicked - a "
+            "common source of an accidental, unwanted form submission (and page reload) bug."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Units",
+        "prompt": "What's the difference between viewport units (`vw`/`vh`) and percentage units, and when would percentage not do what you expect?",
+        "model_answer": (
+            "`vw`/`vh` are always relative to the VIEWPORT'S size (1vw = 1% of viewport width, regardless of "
+            "where the element sits in the DOM). A percentage, by contrast, is relative to the nearest ancestor "
+            "that actually establishes a sizing context for that property - typically the parent element's "
+            "content-box size for width, but for HEIGHT specifically, `height: 50%` only works if the parent has "
+            "an explicit (non-auto) height itself; if every ancestor up to `<html>` has `height: auto` (the "
+            "common default), a percentage height resolves to nothing/collapses, which surprises people "
+            "expecting 'half the screen'. `100vh` sidesteps that ancestor-height requirement entirely by always "
+            "measuring against the viewport directly, which is why it's the more common choice for 'full "
+            "screen height' layouts."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Layout",
+        "prompt": "What does `overflow: hidden` do, and what's a common reason to reach for it beyond clipping content that's too big for its box?",
+        "model_answer": (
+            "`overflow: hidden` clips any content that extends past the element's box instead of letting it "
+            "spill out visibly (the default `visible` behavior). Beyond deliberately clipping oversized content, "
+            "it's a very common (if slightly hacky) fix for the 'collapsing parent' problem: a container whose "
+            "children are all floated has zero measured height by default, because floated elements are taken "
+            "out of normal flow and don't contribute to their parent's height - setting `overflow: hidden` (or "
+            "`auto`) on the parent establishes a 'block formatting context', which forces the parent to actually "
+            "contain and measure its floated children's height. Modern layouts using Flexbox/Grid rarely hit "
+            "this specific problem since floats aren't typically used for layout anymore, but it still shows up "
+            "in legacy CSS and is worth recognizing."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "CSS Layout",
+        "prompt": "What is the 'clearfix' hack, what specific problem does it solve, and why is it rarely needed in modern layouts?",
+        "model_answer": (
+            "When every child of a container is floated, the container itself collapses to zero height, "
+            "because floated elements are removed from normal document flow and don't count toward their "
+            "parent's height calculation - visually, the container's background/border ends up not wrapping its "
+            "floated children at all. 'Clearfix' is a CSS trick (classically `.clearfix::after { content: ''; "
+            "display: table; clear: both; }`) that inserts an invisible element after the floated children with "
+            "`clear: both`, which forces the container to extend down far enough to contain that cleared "
+            "pseudo-element, and therefore the floats too. It's rarely needed today because Flexbox and Grid "
+            "containers naturally measure and contain their children's height without floats being involved at "
+            "all - the whole class of bug clearfix works around simply doesn't arise outside of legacy "
+            "float-based layouts."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "Accessibility",
+        "prompt": "What is focus trapping, and why does a modal dialog need it?",
+        "model_answer": (
+            "Focus trapping means constraining keyboard (Tab/Shift+Tab) focus to cycle only among the elements "
+            "inside a currently-open modal, instead of letting Tab move focus to content behind/underneath it "
+            "that's supposed to be inaccessible while the modal is open. Without it, a keyboard-only or "
+            "screen-reader user tabbing through a page with an open modal can tab 'through' the modal into "
+            "background content that's still technically focusable even though it's visually covered and "
+            "logically disabled - confusing and potentially letting them interact with things they shouldn't "
+            "be able to reach. A correct modal implementation moves focus into the modal when it opens, traps "
+            "Tab/Shift+Tab within its focusable children (wrapping from the last back to the first and vice "
+            "versa), and returns focus to whatever triggered the modal when it closes."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "CSS Rendering",
+        "prompt": "Why does adding `async` or `defer` to a `<script>` tag matter for page load performance, and what's the difference between the two?",
+        "model_answer": (
+            "A plain `<script src=\"...\">` in the middle of HTML parsing blocks the parser entirely: the "
+            "browser stops building the DOM, fetches the script (network round trip), executes it, and only "
+            "then resumes parsing the rest of the page - a slow script directly delays everything below it from "
+            "even appearing. `defer` downloads the script in parallel with HTML parsing but delays EXECUTION "
+            "until parsing is fully complete, and multiple deferred scripts run in their original document "
+            "order - good for scripts that need the full DOM and depend on each other. `async` also downloads "
+            "in parallel, but executes the moment it finishes downloading, pausing the parser at that point "
+            "wherever it happens to be, with no guaranteed order relative to other async scripts - suited to "
+            "independent scripts (like analytics) that don't need the DOM ready or a specific execution order."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "CSS Architecture",
+        "prompt": "What are the tradeoffs of utility-first CSS (e.g. Tailwind-style classes like `flex items-center gap-4`) compared to writing component-scoped CSS (e.g. BEM classes)?",
+        "model_answer": (
+            "Utility-first CSS composes styling entirely from small, single-purpose classes applied directly in "
+            "markup, so you rarely write new CSS at all - styles are visible right at the point of use, and "
+            "there's no risk of specificity conflicts since utility classes are all flat, single-property, equal "
+            "specificity. The tradeoff is markup verbosity (a real element can carry a dozen+ classes) and "
+            "duplication of the same class combinations across every instance of a repeated pattern, unless "
+            "extracted into a component/template. Component-scoped CSS (BEM or similar) keeps markup clean "
+            "(`class=\"card\"`) with the actual styling centralized in one place per component, easier to skim "
+            "and reason about as a unit, but requires actually writing and naming CSS, and any shared "
+            "look-and-feel across components (spacing scale, colors) has to be manually kept consistent rather "
+            "than reused directly from a fixed utility palette."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "HTML Semantics",
+        "prompt": "Why should `<table>` be reserved for genuinely tabular data and never used purely for visual page layout, even though it historically was?",
+        "model_answer": (
+            "Screen readers interpret `<table>` markup literally as tabular data and announce it accordingly - "
+            "row/column counts, header associations via `<th>`/`scope`, and per-cell navigation commands. Using "
+            "`<table>` purely for visual layout (a once-common pre-CSS trick for aligning a page's regions) "
+            "forces a screen-reader user through irrelevant 'table with N rows and N columns' announcements and "
+            "cell-by-cell navigation for content that has no actual tabular meaning, actively harming the "
+            "experience rather than being neutral. It's also brittle and verbose for layout purposes generally "
+            "(nested tables to achieve arbitrary positioning) compared to CSS Grid/Flexbox, which is why the "
+            "practice is now considered a serious anti-pattern - `<table>` should be judged purely by 'does this "
+            "content actually have rows and columns of related data' (a pricing comparison, financial figures), "
+            "not by what layout you want it to produce."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "CSS Performance",
+        "prompt": "What does `content-visibility: auto` do, and how does it help rendering performance on long pages?",
+        "model_answer": (
+            "`content-visibility: auto` tells the browser it can skip rendering work (layout, paint) for an "
+            "element's contents entirely while that element is off-screen, and only do that work once it's "
+            "about to become visible (e.g. via scrolling near it) - similar in spirit to how a virtualized list "
+            "works, but implemented natively by the browser without any JavaScript. This is powerful for very "
+            "long pages (a long article with many sections, a big product listing) where rendering every "
+            "off-screen section up front wastes real work the user may never scroll to see. The main caveat is "
+            "that the browser needs a size estimate to reserve correct scrollbar space for skipped content "
+            "before it's ever rendered - paired with `contain-intrinsic-size` to give it that estimate - or the "
+            "page's scrollbar/layout can jump around as sections are rendered for the first time on scroll."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "CSS Architecture",
+        "prompt": "How does Shadow DOM style encapsulation differ from a naming convention like BEM for preventing CSS from leaking between components?",
+        "model_answer": (
+            "BEM prevents leakage entirely through DISCIPLINE and naming convention - styles are still global in "
+            "the cascade and CAN technically collide or leak, but consistent, verbose, self-contained class "
+            "names (`.card__title`) make collisions unlikely in practice as long as every developer follows the "
+            "convention; nothing enforces it at the platform level. Shadow DOM provides genuine BROWSER-level "
+            "encapsulation: a shadow root creates a separate DOM subtree with its own style scope - CSS written "
+            "inside the shadow root cannot leak out to affect the rest of the page, and (with rare, deliberate "
+            "exceptions like CSS custom properties, which do cross the boundary) page-level CSS cannot reach "
+            "in and affect the shadow tree's internals either. The tradeoff is that this real isolation makes "
+            "deliberate theming/customization of a shadow-DOM component from outside harder (you need explicit "
+            "escape hatches like CSS custom properties or `::part()`), whereas BEM's 'encapsulation' is opt-in "
+            "and therefore easier to override intentionally, but also easier to break accidentally."
+        ),
+    },
 ]

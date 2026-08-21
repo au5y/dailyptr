@@ -223,4 +223,223 @@ CONCEPT_CHECKS = [
             "thread's frequently-written data has its own line."
         ),
     },
+    {
+        "difficulty": "easy",
+        "topic": "Memory",
+        "prompt": "What is a dangling pointer, and how is it different from a null pointer?",
+        "model_answer": (
+            "A null pointer explicitly points to nothing (address 0) and is safe to check against (`if (ptr)`), "
+            "so dereferencing it is a predictable, checkable crash. A dangling pointer still holds the address "
+            "of memory that has since been freed/deleted or gone out of scope - it looks like a valid, non-null "
+            "pointer, but the memory it points to no longer belongs to it, so dereferencing it is undefined "
+            "behavior (might crash, might silently read/write garbage or someone else's now-reallocated data). "
+            "The danger is exactly that a dangling pointer gives no visible signal that it's unsafe to use, "
+            "unlike a null pointer."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "OOD",
+        "prompt": "What is encapsulation, and why is it considered bad practice to expose a class's internal state as public data members?",
+        "model_answer": (
+            "Encapsulation means bundling an object's data with the methods that operate on it, and hiding the "
+            "data behind a controlled interface (private members plus public methods) rather than letting "
+            "outside code touch it directly. Public data members let any caller set the object into an invalid "
+            "state with no chance for the class to validate or react (e.g. setting a bank balance negative, or "
+            "a percentage to 150), and they also make refactoring the internal representation a breaking change "
+            "for every caller that reached in directly. Keeping state private and mediating access through "
+            "methods means the class can enforce its own invariants and change its internals later without "
+            "breaking callers."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "STL",
+        "prompt": "What's the practical difference between std::map and std::unordered_map, and when would you pick each?",
+        "model_answer": (
+            "std::map is a sorted associative container (typically a red-black tree) - keys are kept in order, "
+            "iteration visits them sorted, and lookup/insert/erase are O(log n). std::unordered_map is a hash "
+            "table - no ordering guarantee, but average-case O(1) lookup/insert/erase (worst case O(n) under "
+            "heavy hash collisions). Pick std::unordered_map when you just need fast key lookup and don't care "
+            "about order (the common case); pick std::map when you need sorted iteration (e.g. printing entries "
+            "in key order) or need iterator stability guarantees unordered_map doesn't give as cleanly across "
+            "rehashing."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "C++ Semantics",
+        "prompt": "What does 'const correctness' mean, and why does it matter for a function's public API?",
+        "model_answer": (
+            "Const correctness means marking anything that doesn't modify state as `const` - parameters passed "
+            "by reference that are only read (`const T&`), member functions that don't mutate the object "
+            "(`void print() const`), and so on. It matters because it's a compiler-enforced contract: a caller "
+            "holding a `const T&` or `const T` object can only call `const` methods on it, so const correctness "
+            "lets the type system catch accidental mutation at compile time instead of relying on documentation "
+            "or trust. It also communicates intent to readers - a `const` parameter tells them at a glance that "
+            "the function won't modify their data, without needing to read the function body."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "Design Patterns",
+        "prompt": "Explain the Observer pattern and give a concrete example of when you'd reach for it.",
+        "model_answer": (
+            "Observer defines a one-to-many dependency: a subject maintains a list of observers and notifies "
+            "them all automatically whenever its state changes, without needing to know anything about what "
+            "those observers actually do with the notification. This decouples the thing that changes from the "
+            "things that react to the change - the subject doesn't hold direct references to concrete observer "
+            "types, just an interface each observer implements (e.g. `onUpdate()`). A concrete example: a "
+            "shopping cart object that notifies a UI badge, an analytics logger, and a persistence layer "
+            "whenever an item is added - each observer subscribes independently, and the cart doesn't need to "
+            "know any of them exist, so new observers can be added without modifying the cart's code."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "C++ Semantics",
+        "prompt": "What's the difference between a shallow copy and a deep copy, and how does std::unique_ptr avoid the need to write a custom deep-copy in the first place?",
+        "model_answer": (
+            "A shallow copy duplicates an object's members as-is, including any raw pointers - so both the "
+            "original and the copy end up pointing at the SAME underlying resource, which is usually wrong for "
+            "an owning pointer (double free when both destructors run). A deep copy instead allocates a new, "
+            "independent copy of whatever the pointer owns, so the two objects don't share state. std::unique_ptr "
+            "sidesteps this whole problem by deleting its copy constructor/assignment entirely (it's move-only) "
+            "- since a unique_ptr can't be copied at all, a class holding one as a member is automatically "
+            "non-copyable too, unless you explicitly write a copy constructor that deep-copies the pointee "
+            "yourself, which forces the decision to be conscious rather than accidental."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "STL",
+        "prompt": "What does std::optional solve that returning a sentinel value (like -1 or nullptr) for 'no result' doesn't?",
+        "model_answer": (
+            "A sentinel value overloads the return type to mean two different things - a real result, or "
+            "'nothing' - and relies entirely on the caller remembering to check for it; nothing in the type "
+            "system enforces that check, and the sentinel itself might collide with a genuinely valid value "
+            "(e.g. -1 could be a legitimate result in some domains). std::optional<T> makes 'might not have a "
+            "value' part of the type itself: the caller must explicitly check (`if (result)` or `.has_value()`) "
+            "and unwrap (`*result` or `.value()`) before using it, and the compiler won't implicitly let you "
+            "treat an optional<T> as a plain T. It also works for any T, including types with no natural "
+            "sentinel value at all (like a struct), which a magic sentinel can't express."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "Concurrency",
+        "prompt": "What's the difference between std::mutex and std::recursive_mutex, and why should you generally try to avoid needing the latter?",
+        "model_answer": (
+            "std::mutex deadlocks immediately if the same thread tries to lock it twice without unlocking in "
+            "between (even from a nested call) - it has no concept of 'the thread that already holds this lock'. "
+            "std::recursive_mutex tracks which thread owns it and how many times, letting that same thread "
+            "re-lock it repeatedly (each lock() needs a matching unlock()) without deadlocking. Needing a "
+            "recursive_mutex is usually a sign the code's locking discipline is unclear - it's easy to lose "
+            "track of exactly how many times a lock is currently held across a call chain, and it masks a "
+            "design where a smaller, more clearly-scoped critical section (or restructuring so the locked "
+            "function doesn't call back into itself while holding the lock) would be safer and easier to reason "
+            "about."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "Templates",
+        "prompt": "What is SFINAE, and what practical problem does it let you solve?",
+        "model_answer": (
+            "SFINAE stands for 'Substitution Failure Is Not An Error': when the compiler substitutes a "
+            "candidate template's type parameters during overload resolution and that substitution produces an "
+            "invalid type/expression, the compiler silently removes that candidate from the overload set "
+            "instead of emitting a hard compile error - it just tries the other candidates. This lets you write "
+            "multiple template overloads that are only valid for types with certain properties (e.g. 'has a "
+            "`.size()` method' or 'is an integral type'), and have the compiler automatically pick the right one "
+            "(or fail to compile only if truly none apply) based on what's substitutable, effectively doing "
+            "compile-time interface checking/dispatch without runtime cost. Modern C++20 concepts largely "
+            "replace hand-rolled SFINAE for this with much more readable syntax, but SFINAE is still what "
+            "concepts compile down to and what you'll find in older codebases."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "OOD",
+        "prompt": "Explain the Open/Closed Principle, and give an example of code that violates it.",
+        "model_answer": (
+            "The Open/Closed Principle says code should be open for extension but closed for modification - "
+            "adding new behavior should be possible without editing and re-testing existing, working code. A "
+            "classic violation: a `computeDiscount(Order order)` function containing `if (order.type == "
+            "\"REGULAR\") ... else if (order.type == \"VIP\") ... else if (order.type == \"WHOLESALE\") ...` - "
+            "adding a new order type means editing this function and risking breaking the existing branches, "
+            "and the function has to know about every type that will ever exist. A design that honors OCP "
+            "instead defines a `DiscountStrategy` interface with one implementation per order type; adding a new "
+            "order type means writing a new class that implements the interface, without touching any existing "
+            "code at all."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "Design Patterns",
+        "prompt": "What is Dependency Injection, and how does it improve testability compared to a class constructing its own dependencies internally?",
+        "model_answer": (
+            "Dependency Injection means a class receives (is 'injected with') the objects it depends on - "
+            "usually via constructor parameters - rather than constructing them itself internally with `new`. "
+            "When a class builds its own dependencies (e.g. a `OrderService` that does `db_ = new "
+            "PostgresDatabase()` inside its constructor), it's permanently hard-wired to that concrete "
+            "implementation, so a unit test exercising OrderService's logic also has to stand up a real "
+            "Postgres connection. With DI, the constructor instead takes a `Database&` (interface/abstract "
+            "base), and the caller decides what concrete implementation to pass in - production code passes a "
+            "real PostgresDatabase, while a test passes a lightweight fake/mock implementing the same "
+            "interface, letting the test isolate OrderService's logic from any real database at all."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "C++ Semantics",
+        "prompt": "What is copy elision (RVO), and why can it mean a class's copy or move constructor is never actually called even though the code looks like it should be?",
+        "model_answer": (
+            "Copy elision lets the compiler construct an object directly in its final destination storage, "
+            "skipping an intermediate copy/move entirely, in situations like returning a local by value "
+            "(`return Widget(args);` or, since C++17, even `return localWidget;` in some cases) - instead of "
+            "building a temporary and then copying/moving it into the caller's variable, the compiler builds it "
+            "in place from the start. As of C++17, 'mandatory' copy elision for a prvalue return (like "
+            "`return Widget(args);`) is guaranteed by the standard - not just an optimization the compiler is "
+            "allowed to do - meaning the copy/move constructor isn't merely skipped as an optimization, it "
+            "genuinely doesn't need to exist/be callable at all for that specific case to compile. This is why "
+            "code that 'returns by value' is often not actually wasteful the way it looks, and why a class can "
+            "sometimes be returned by value even with its copy and move constructors both deleted."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "Concurrency",
+        "prompt": "Explain the ABA problem in lock-free programming: what is it, and why does a simple compare-and-swap on a pointer not fully protect against it?",
+        "model_answer": (
+            "The ABA problem occurs in lock-free algorithms that use compare-and-swap (CAS) to detect whether a "
+            "value changed: a thread reads a value A, gets preempted, and while it's paused another thread "
+            "changes the value from A to B and then back to A again before the first thread resumes. The "
+            "resuming thread's CAS sees the value is still A and proceeds as if nothing happened, but the "
+            "underlying state genuinely changed in between (e.g. in a lock-free stack, the same pointer value A "
+            "might now point to a freed-and-reallocated node with completely different contents/links) - the CAS "
+            "can't distinguish 'never changed' from 'changed and changed back'. The classic mitigation is "
+            "tagging the pointer with a monotonically-incrementing counter packed alongside it (a "
+            "'double-word CAS' or tagged pointer), so even if the pointer value returns to A, the tag has "
+            "advanced and the CAS correctly fails."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "OOD / Design",
+        "prompt": "What's the difference between composition and inheritance for code reuse, and when does the advice 'favor composition over inheritance' actually apply (as opposed to always)?",
+        "model_answer": (
+            "Inheritance reuses code by making one class literally BE a specialized version of another (is-a), "
+            "inheriting its interface and implementation together as a fixed package, decided at compile time "
+            "and hard to change later. Composition reuses code by making one class HAVE another as a member "
+            "(has-a) and delegating to it, which can be swapped out or reconfigured at runtime and doesn't "
+            "couple the two classes' interfaces together. The advice applies most strongly when the relationship "
+            "isn't a genuine is-a (using inheritance purely to reuse a method, not because the subtype "
+            "relationship holds - e.g. `Stack : public Vector` just to reuse push_back, which also wrongly "
+            "exposes Vector's whole interface including things a Stack shouldn't allow), and when you need to "
+            "change behavior at runtime (a Strategy held by composition can be swapped; a base class can't be "
+            "un-inherited). Inheritance is still the right tool when a genuine, stable is-a relationship exists "
+            "and runtime polymorphism through a shared interface is actually needed."
+        ),
+    },
 ]

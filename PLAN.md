@@ -43,11 +43,14 @@ Full narrative/decision history for the above lives in git log, not here.
 
 ## Remaining for MVP
 
-- [ ] **`cpp_core`/`html_css` content depth**: grow concept-check and
-  code-review pools (1 entry/day each) toward ~9 per easy/medium/hard tier
-  and ~5 for expert, so a full month has no repeats. Quiz is lower
-  priority (3 sampled/day already absorbs a smaller pool). Pure data entry
-  in `backend/app/content/*.py`.
+All three MVP items are now code-complete; the one non-code follow-up
+(setting `ANTHROPIC_API_KEY` on Railway) is noted inline below.
+
+- [x] **`cpp_core`/`html_css` content depth**: concept-check and
+  code-review pools for both tracks now sit at 9/9/9/5 (easy/medium/hard/
+  expert) - verified via a count+dedupe check and the full test suite
+  staying green. Quiz pools weren't touched (lower priority - 3
+  sampled/day already absorbs a smaller pool).
 - [x] **AI grading, safely**: per-account daily quota (`User.ai_grade_count`
   / `ai_grade_count_date`, default cap `AI_GRADE_DAILY_LIMIT=20`, 429 past
   it) landed in `routers/concept.py` + migration `f4e9b7c1d2a3`, with a
