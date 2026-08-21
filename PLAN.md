@@ -157,13 +157,35 @@ screenshots) plus the existing pytest suite.
   `dailyptr-*` in `docker-compose.yml`, `config.py`'s `SANDBOX_IMAGE`
   default, and the sandbox Dockerfile comment) to reflect that the app is
   now multi-track, not C++-only.
-- **Grow content toward a full year (not started)**: the user asked for
-  this to be scheduled as follow-up work, not built now. Goal: extend all
-  three tracks' pools toward roughly 40-45 entries per difficulty tier per
-  content type (~4-5x System Design's current depth, which is itself the
-  deepest track today), so even a full year of daily use stays low-repeat.
-  Consider extending the `backfill_history` approach to the other two
-  tracks as well while doing this pass.
+- **Content volume growth - C++ Core and HTML/CSS (first pass done,
+  2026-08-20; not yet at true no-repeat-month depth)**: added quiz/
+  concept/code-review entries to both tracks, on-task for each track's
+  actual subject (C++/STL/OOD/design patterns/concurrency for `cpp_core`;
+  markup/CSS/layout/accessibility for `html_css`) rather than generic dev
+  trivia, keeping the two tracks distinct from each other and from System
+  Design's interdisciplinary content. New counts per difficulty tier
+  (easy/medium/hard/expert):
+  - `cpp_core`: quiz 9/9/9/6 (unchanged, already reasonably deep),
+    concept 5/5/5/3 (was 3/3/3/2), code-review 4/4/4/3 (was 2/2/2/2).
+  - `html_css`: quiz 5/5/5/3 (was 3/3/3/3), concept 4/4/4/3 (was 1/1/1/1),
+    code-review 4/4/4/3 (was 2/2/2/2).
+  Verified: all entries parse and seed cleanly into a fresh DB (no
+  duplicate titles/questions, every code-review marker resolves), full
+  pytest suite still green (33 tests).
+  **Still short of "a full month, zero repeats"**: since a Day picks 1
+  concept-check and 1 code-review entry (vs. `QUESTIONS_PER_DAY=3` sampled
+  per quiz), those two need roughly 9 entries per weekday-pair tier
+  (easy/medium/hard) and ~5 for expert (Sunday-only) to cover a ~4.3-week
+  month with zero repeats - current depth (4-5 per tier) covers roughly
+  2-2.5 weeks before repeating. Next increment: keep adding concept/
+  code-review entries toward that ~9/9/9/5 target for both tracks (quiz
+  can stay lower priority since its 3-per-day sampling absorbs a smaller
+  pool better). Consider extending the `system_design`-style
+  `backfill_history` approach to these two tracks once pools are deep
+  enough to support it.
+- **Grow System Design toward a full year (later)**: same idea as above,
+  deferred - extend it toward roughly 40-45 entries per difficulty tier
+  once the C++/HTML-CSS push above is done.
 - **Code editor upgrade (done)**: swapped the plain `<textarea>` for
   CodeMirror 5 (via CDN, `CodeMirror.fromTextArea`) for syntax highlighting
   and bracket matching on the non-block-mode path; block mode is untouched.
@@ -178,6 +200,16 @@ screenshots) plus the existing pytest suite.
   will still see repeats within a couple months. `html_css` is much thinner
   (12/4/4) and would benefit most from more content. Pure data entry in
   `backend/app/content/*.py`.
+- **Turn on AI grading for real, with an abuse guard (next up, decided
+  2026-08-20)**: the concept-check "AI-grade my answer" button
+  (`frontend/app.js:962`, `POST /concept/{day_id}/ai-grade`) already exists
+  and is gated to signed-in (non-guest) accounts, but sits dark today
+  because `ANTHROPIC_API_KEY` isn't set anywhere it's deployed. Before
+  setting the real key on Railway: any Google account can currently sign in
+  and hit this endpoint with no limit, which against a real API key means
+  anyone who signs in can run up usage/cost unbounded - needs a per-account
+  cap (e.g. a small daily/weekly quota, tracked per user, 429ing past it)
+  before the key goes live, not after.
 - **Spaced repetition for concept checks**: weight selection toward topics
   self-graded "missed" recently (needs a small history table keyed by
   concept id, per track).
@@ -279,22 +311,16 @@ that's wanted too).
 
 ## Phase 4 - Make progress visible
 
-- **Streak milestone badges (done, 2026-08-20)**: a one-time bonus + badge
-  the first time a user's current streak on a track reaches a threshold
-  (`config.STREAK_MILESTONES` = 3/7/14/30/60/100/200/365 days,
-  `STREAK_MILESTONE_BONUS` scales the points). Tracked in a new
-  `MilestoneAward` table, unique on `(user, track, milestone)` so it only
-  ever fires once even across streak resets - checked inside
-  `scoring.maybe_award_completion_bonus` right when a day's last component
-  completes, using the same streak math `/api/stats` already computes (so it
-  only credits a milestone when a completion genuinely extends the *current*
-  streak, not an unrelated backfilled day). Quiz/code-review/concept submit
-  responses carry `milestones_hit`; the frontend pops a toast ("New badge:
-  7-Day Streak!") from whichever tab finishes the day, and the History page
-  shows a row of earned badges plus a preview of the next locked one.
-  Deliberately scoped to just this one streak-feature idea, picked from a
-  handful offered (freezes/protection, an "at risk" reminder, and a friends
-  leaderboard were explicitly not built this pass - worth returning to).
+- **Streak milestone badges (built 2026-08-20, not visible/findable yet)**:
+  backend + History-page row exist (`config.STREAK_MILESTONES` =
+  3/7/14/30/60/100/200/365 days, `MilestoneAward` table unique on `(user,
+  track, milestone)`, toast on the tab that completes the day), but there's
+  currently no obvious, persistent place to go see your earned badges -
+  belongs on a real profile/account page, which doesn't exist yet. Revisit
+  once a profile page is built rather than trying to surface it further in
+  History. Freezes/protection, an "at risk" reminder, and a friends
+  leaderboard were explicitly not built this pass either - worth returning
+  to.
 - **Stats page upgrade**: topic-accuracy breakdown and a points-over-time
   chart (the calendar heatmap part of this already shipped in Phase 1).
 - **Export**: a "download my history as JSON/CSV" button - the backup
@@ -307,10 +333,16 @@ that's wanted too).
   became sharing with friends rather than solo use. A per-account
   leaderboard/comparison view is a natural follow-up now that the data
   exists, but not built yet.
-- **Public exposure / reverse proxy + TLS**: the auth gate itself now
-  exists (Google sign-in / guest accounts, Phase 2), but the app still
-  needs to actually sit behind a reverse proxy with real TLS to be exposed
-  beyond localhost/Tailscale - self-hosted, in progress.
+- **Public exposure / reverse proxy + TLS (done, 2026-08-20)**: live on
+  Railway, reverse-proxied at `au5y.dev/daily`. Google OAuth sign-in was
+  broken in production for a bit (Railway's log capture wasn't showing
+  anything mid-request, so the callback couldn't be debugged blind) - fixed
+  by routing callback failures through `login?error=<reason>` so the real
+  exception surfaced on the page, which found and fixed the actual cause
+  (redirect URI / path-prefix mismatch under `/daily`), plus a follow-up fix
+  for the favicon 404ing under the same prefix. Diagnostic error-surfacing
+  on the login page is still in place - worth trimming to a generic message
+  now that it's served its purpose.
 - **A real migration framework**: superseded by the detailed "Swap SQLite
   for Postgres + adopt real migrations" entry under **Practice projects**
   above.

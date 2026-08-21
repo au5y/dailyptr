@@ -157,6 +157,82 @@ HTML_CSS_QUIZ = [
         "correct_index": 1,
         "explanation": "Semantic HTML elements ship with accessibility built in; the moment you rebuild their look from generic elements, you take on the responsibility of reimplementing their keyboard behavior and screen-reader semantics via ARIA and JS.",
     },
+    # ---------------- MORE EASY ----------------
+    {
+        "difficulty": "easy",
+        "topic": "HTML Semantics",
+        "question": "Which element should wrap a self-contained piece of content that would make sense on its own, like a blog post or news story?",
+        "choices": ["<div>", "<article>", "<section>", "<aside>"],
+        "correct_index": 1,
+        "explanation": "<article> marks content that's independently distributable/reusable (a post, a comment, a widget) - the litmus test is whether it would still make sense syndicated on its own.",
+    },
+    {
+        "difficulty": "easy",
+        "topic": "CSS Selectors",
+        "question": "What does the CSS selector `p > span` match?",
+        "choices": [
+            "Any <span> anywhere inside a <p>, at any depth",
+            "Only a <span> that is a direct child of a <p>",
+            "Any <p> that contains a <span>",
+            "A <span> immediately followed by a <p>",
+        ],
+        "correct_index": 1,
+        "explanation": "`>` is the direct-child combinator - it only matches an immediate child, unlike the descendant combinator (a plain space) which matches at any nesting depth.",
+    },
+    # ---------------- MORE MEDIUM ----------------
+    {
+        "difficulty": "medium",
+        "topic": "HTML Forms",
+        "question": "What does the HTML `required` attribute on an `<input>` actually do?",
+        "choices": [
+            "Nothing by itself - it needs JavaScript to work",
+            "Triggers built-in browser form validation that blocks submission and shows a native message until the field is filled",
+            "Makes the field read-only",
+            "Only affects styling, adding a red border",
+        ],
+        "correct_index": 1,
+        "explanation": "`required` is part of HTML5's native constraint validation - the browser blocks form submission and shows its own validation UI with zero JavaScript, though custom styling/messages still need extra work.",
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Pseudo-classes",
+        "question": "What's the difference between `:nth-child(2)` and `:nth-of-type(2)` on an element?",
+        "choices": [
+            "They're identical in every case",
+            "`:nth-child` counts among ALL sibling elements regardless of tag; `:nth-of-type` counts only among siblings of the same tag",
+            "`:nth-of-type` only works on the <body> element",
+            "`:nth-child` only works with even numbers",
+        ],
+        "correct_index": 1,
+        "explanation": "If a container mixes tags (e.g. a <h2> then several <p>s), `:nth-child(2)` counts position among ALL children regardless of type, while `p:nth-of-type(2)` counts the 2nd <p> specifically among just the <p> siblings - they diverge whenever siblings aren't all the same tag.",
+    },
+    # ---------------- MORE HARD ----------------
+    {
+        "difficulty": "hard",
+        "topic": "CSS Layout",
+        "question": "In CSS Grid, what does `grid-template-areas` let you do that raw `grid-template-columns`/`rows` don't as directly?",
+        "choices": [
+            "Nothing extra - it's purely a shorthand for column widths",
+            "Name layout regions with strings so the grid's overall shape reads visually in the CSS itself, and place items into named areas instead of numeric line positions",
+            "It only works with exactly 2 columns",
+            "It replaces the need for grid-template-columns entirely in all cases",
+        ],
+        "correct_index": 1,
+        "explanation": "grid-template-areas lets you literally draw the layout as a grid of quoted strings (e.g. \"header header\" \"sidebar main\") and then place children with `grid-area: header`, making the overall page structure readable at a glance instead of reasoning about numbered grid lines.",
+    },
+    {
+        "difficulty": "hard",
+        "topic": "Accessibility",
+        "question": "What is the purpose of `role=\"alert\"` on an element in ARIA?",
+        "choices": [
+            "It changes the element's visual styling to look like a warning box",
+            "It marks the region as a live region that screen readers announce immediately/assertively when its content changes, for urgent, time-sensitive information",
+            "It disables the element",
+            "It's purely decorative and has no effect on assistive technology",
+        ],
+        "correct_index": 1,
+        "explanation": "role=\"alert\" is an implicit assertive live region - screen readers interrupt whatever they're currently saying to announce it, which is why it should be reserved for genuinely urgent messages (errors, critical status changes) rather than routine UI updates.",
+    },
 ]
 
 HTML_CSS_CONCEPT = [
@@ -211,6 +287,184 @@ HTML_CSS_CONCEPT = [
             "base, components, utilities/overrides) so later layers win by declared intent rather than "
             "specificity accidents; and a lint rule capping selector depth/specificity and banning !important "
             "outside of narrowly justified utility classes."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "CSS Units",
+        "prompt": "What's the difference between `px`, `em`, and `rem` as CSS length units, and when would you reach for each?",
+        "model_answer": (
+            "`px` is an absolute unit - a fixed pixel size that doesn't scale with anything. `em` is relative "
+            "to the current element's own computed font-size (which means it compounds: a nested element with "
+            "`font-size: 1.5em` inside a parent that's already 1.5em scales multiplicatively, which can surprise "
+            "you). `rem` ('root em') is relative to the root `<html>` element's font-size only, regardless of "
+            "nesting - no compounding. Common practice: use `rem` for font-sizes and spacing so everything "
+            "scales together if the user changes their browser's base font size (an accessibility win), use "
+            "`em` for things that should scale with their own element's local font-size (like padding inside a "
+            "button that should grow with the button's text), and reserve `px` for things that genuinely "
+            "shouldn't scale (hairline borders)."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "HTML Forms",
+        "prompt": "Why does an `<input>` need an associated `<label>` (not just placeholder text) to be considered accessible?",
+        "model_answer": (
+            "Placeholder text disappears the moment the user types, isn't announced consistently by all screen "
+            "readers as the field's name, and often fails color-contrast requirements since it's styled as "
+            "muted/gray. A `<label>` (either wrapping the input or linked via `for=\"id\"` matching the input's "
+            "`id`) gives the field a persistent, programmatically-associated name: screen readers announce it "
+            "when the field receives focus, and clicking the label text focuses/activates the input (useful for "
+            "small tap targets like checkboxes). Placeholder text is fine as supplementary formatting help "
+            "('MM/DD/YYYY') but should never be the only description of what a field is for."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Pseudo-classes",
+        "prompt": "What's the difference between a pseudo-class (like `:hover`) and a pseudo-element (like `::before`)?",
+        "model_answer": (
+            "A pseudo-class selects an element based on a state or position it's already in - `:hover` (being "
+            "pointed at), `:first-child` (its position among siblings), `:checked` (a form control's state) - "
+            "it still targets a real element in the DOM, just conditionally. A pseudo-element creates or "
+            "targets something that isn't a real DOM node - `::before`/`::after` insert generated content "
+            "as a child of the element (commonly used with `content: '...'` for decorative icons/quotes "
+            "without extra markup), `::first-line`/`::first-letter` target a sub-part of the element's text. "
+            "The double-colon (`::`) syntax was introduced in CSS3 specifically to distinguish pseudo-elements "
+            "from pseudo-classes, though single-colon still works for the original four pseudo-elements for "
+            "backward compatibility."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Naming",
+        "prompt": "What problem does the BEM (Block__Element--Modifier) naming convention solve?",
+        "model_answer": (
+            "Without a convention, CSS class names tend to either be too generic (`.title`, `.item` - collides "
+            "across unrelated components, invites accidental overrides) or force ever-deeper nested selectors "
+            "to disambiguate (`.card .header .title` - raises specificity, making later overrides harder). BEM "
+            "makes every class name self-contained and flat: `.card` (Block, a standalone component), "
+            "`.card__title` (Element, a part of that block, double underscore), `.card--featured` (Modifier, a "
+            "variant of the block or element, double dash). Because every class already encodes its full "
+            "context in its name, you never need nested selectors to scope a style, which keeps specificity "
+            "low and uniform across the whole codebase - a `.card__title` rule can't accidentally clash with "
+            "an unrelated `.title` inside a different component."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "Accessibility",
+        "prompt": "What does `aria-live` do, and when do you actually need it?",
+        "model_answer": (
+            "`aria-live` marks a region of the page whose content changes dynamically (via JS, without a full "
+            "page reload) as something a screen reader should announce even though the user's focus never "
+            "moved there - e.g. a form validation error that appears after submit, a 'item added to cart' "
+            "toast, or a live search result count. Without it, a screen reader user gets no signal that "
+            "anything changed, since focus-based announcement (the normal mechanism) only fires for elements "
+            "the user actually navigates to. `aria-live=\"polite\"` waits for the screen reader to finish its "
+            "current announcement before reading the update (use for most non-urgent updates); "
+            "`aria-live=\"assertive\"` interrupts immediately (reserve for genuinely urgent/error content, since "
+            "overuse is jarring). It's not needed for content that's present at page load or that the user "
+            "navigates to directly (like clicking into a newly revealed panel) - only for changes the user "
+            "isn't already looking at."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "CSS Rendering",
+        "prompt": "Why is a `<link rel=\"stylesheet\">` in the `<head>` considered 'render-blocking', and why does that matter for perceived load speed?",
+        "model_answer": (
+            "Browsers intentionally delay painting any content to the screen until they've finished downloading "
+            "and parsing all CSS discovered so far, because CSS can affect the layout/appearance of anything "
+            "already parsed - painting early and then having to repaint once styles arrive would cause a "
+            "visible flash of unstyled content (FOUC), which browsers avoid by blocking render on CSS instead. "
+            "This means a slow-loading stylesheet directly delays first paint, even if the HTML itself parsed "
+            "instantly. Common mitigations: keep the critical stylesheet small, inline the minimal CSS needed "
+            "for above-the-fold content directly in `<head>` so it doesn't require a network round trip, and "
+            "load non-critical CSS asynchronously (e.g. `<link rel=\"preload\" as=\"style\" onload=\"this.rel="
+            "'stylesheet'\">` or a `media` trick) so it doesn't block initial paint."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "CSS Performance",
+        "prompt": "Explain the browser rendering pipeline (style -> layout -> paint -> composite) and why knowing which stage a CSS property affects matters for animation performance.",
+        "model_answer": (
+            "After the DOM/CSSOM are built, the browser: computes each element's final styles (style/recalc), "
+            "computes the geometry - size and position - of every element (layout, a.k.a. reflow), fills in "
+            "actual pixels for each element into layers (paint), then combines those layers onto the screen, "
+            "possibly on the GPU (composite). Changing a property can force re-running from different points "
+            "in that pipeline: geometry-affecting properties (width, top, margin) force layout -> paint -> "
+            "composite for the changed element AND potentially its neighbors/ancestors (layout thrashing if "
+            "done in a loop reading then writing geometry repeatedly); paint-only properties (background-color, "
+            "box-shadow) skip layout but still repaint; `transform` and `opacity` can, under the right "
+            "conditions (the element promoted to its own compositor layer), skip both layout and paint entirely "
+            "and be handled purely by the compositor thread, which is why they're the properties recommended "
+            "for smooth 60fps animation - they're the only ones that can avoid touching the main thread per frame."
+        ),
+    },
+    {
+        "difficulty": "easy",
+        "topic": "HTML Semantics",
+        "prompt": "What's the difference between `<div>` and `<span>`, and how do you decide which to reach for?",
+        "model_answer": (
+            "Both are generic, non-semantic containers with no inherent meaning - the difference is purely "
+            "display type. `<div>` is block-level by default (starts on its own line, takes full available "
+            "width), used to group larger structural chunks (a card, a section of a form). `<span>` is "
+            "inline by default (flows within a line of text, only as wide as its content), used to wrap a "
+            "small piece of text or inline content you need to style or target with JS without breaking the "
+            "surrounding text flow (e.g. highlighting one word in a sentence). Neither should be your first "
+            "choice if a semantic element fits (`<nav>`, `<button>`, `<article>`) - reach for div/span only "
+            "when there's genuinely no more meaningful element for the content."
+        ),
+    },
+    {
+        "difficulty": "medium",
+        "topic": "CSS Layout",
+        "prompt": "What is the 'stacking context' in CSS, and why can setting `z-index` on an element sometimes not work the way you expect?",
+        "model_answer": (
+            "A stacking context is a self-contained 3D-ish layering group - elements are painted back-to-front "
+            "within their own stacking context, and `z-index` only compares elements against siblings *within "
+            "the same* stacking context, not globally across the whole page. Certain CSS properties create a "
+            "new stacking context on the element that has them (e.g. `position: relative/absolute` combined "
+            "with a `z-index` value, `opacity` less than 1, `transform`, `filter`), which means everything "
+            "inside that element is now layered as a sealed unit - a child with `z-index: 9999` still can't "
+            "escape above a sibling of its stacking-context-creating parent, no matter how high the number, "
+            "because it's being compared to siblings inside its own context, not the page's elements directly. "
+            "This is the usual cause of 'I set z-index: 9999 and it still renders behind that other element'."
+        ),
+    },
+    {
+        "difficulty": "hard",
+        "topic": "CSS Layout",
+        "prompt": "Explain CSS Grid's `fr` unit and how `grid-template-columns: 1fr 2fr 1fr` differs from using percentages.",
+        "model_answer": (
+            "`fr` (fraction unit) distributes remaining space in the grid container after all non-flexible "
+            "content (fixed-size tracks, gaps, padding) has been accounted for - `1fr 2fr 1fr` splits whatever "
+            "space is LEFT into 4 shares, giving the middle column twice the width of the outer two. This "
+            "differs from percentages in a key way: percentages are always relative to the full container "
+            "width regardless of other content, so mixing a percentage column with a fixed-px column can "
+            "cause overflow (they don't 'know' about each other and can sum past 100%). `fr` units automatically "
+            "account for other tracks first, then divide only what's actually left, which is why `200px 1fr "
+            "1fr` reliably gives you a fixed 200px sidebar and two equal flexible columns filling the rest, "
+            "with no overflow math to get wrong by hand."
+        ),
+    },
+    {
+        "difficulty": "expert",
+        "topic": "CSS Architecture",
+        "prompt": "What are CSS container queries, and what layout problem do they solve that media queries fundamentally can't?",
+        "model_answer": (
+            "Media queries respond to the viewport's size - useful for page-level, top-down responsive layout, "
+            "but a component (a card, a widget) has no way to know its OWN rendered width via a media query, "
+            "only the browser window's. This breaks down for genuinely reusable components: the same `.card` "
+            "might render at 300px wide in a sidebar and 800px wide in a main content area on the exact same "
+            "page at the exact same viewport size, but a media query can't distinguish those - it only sees "
+            "the viewport. Container queries (`@container` + `container-type: inline-size` declared on an "
+            "ancestor) let a component query the size of its own nearest sized ancestor instead, so a card "
+            "component can genuinely say 'when I am rendered narrower than 400px, stack my image above the "
+            "text' regardless of where it's placed on the page or how wide the viewport is - true "
+            "component-level responsiveness instead of only page-level."
         ),
     },
 ]
