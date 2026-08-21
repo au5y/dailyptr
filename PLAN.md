@@ -48,14 +48,15 @@ Full narrative/decision history for the above lives in git log, not here.
   and ~5 for expert, so a full month has no repeats. Quiz is lower
   priority (3 sampled/day already absorbs a smaller pool). Pure data entry
   in `backend/app/content/*.py`.
-- [ ] **AI grading, safely**: turn on `ANTHROPIC_API_KEY` on Railway for
-  the existing (currently-dark) concept-check AI-grade button - but only
-  after adding a per-account usage cap (daily/weekly quota, 429 past it),
-  since any Google sign-in can otherwise hit the endpoint unbounded once a
-  real key is live.
-- [ ] **Trim OAuth diagnostics**: the login page's `error=<reason>` detail
-  was added to debug the Railway OAuth failure; now that it's fixed, trim
-  it back to a generic message.
+- [x] **AI grading, safely**: per-account daily quota (`User.ai_grade_count`
+  / `ai_grade_count_date`, default cap `AI_GRADE_DAILY_LIMIT=20`, 429 past
+  it) landed in `routers/concept.py` + migration `f4e9b7c1d2a3`, with a
+  test covering the 429. Still need `ANTHROPIC_API_KEY` actually set on
+  Railway to turn the button on - that's a secret only the user can supply.
+- [x] **Trim OAuth diagnostics**: login page's `error=<reason>` detail
+  replaced with a bare `error=1` flag; login.html shows its existing
+  generic "Sign-in failed - try again." message instead of echoing the
+  reason. The real reason still goes to the server log (`_error_redirect`).
 
 ## Backlog (not MVP - revisit later)
 

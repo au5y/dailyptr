@@ -1,7 +1,6 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from urllib.parse import quote
 
 from authlib.integrations.base_client import OAuthError
 from fastapi import FastAPI, Request
@@ -99,7 +98,7 @@ def _error_redirect(request: Request, reason: str) -> RedirectResponse:
     logger.error("Google OAuth callback failed: %s", reason)
     depth = request.url.path.count("/") - 1
     root = "../" * depth if depth else "."
-    return RedirectResponse(url=f"{root}login?error={quote(reason)}", status_code=303)
+    return RedirectResponse(url=f"{root}login?error=1", status_code=303)
 
 
 @app.get("/auth/google/callback", name="google_callback")

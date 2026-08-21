@@ -74,6 +74,11 @@ DATABASE_URL = os.environ.get(
 # Unset -> the app falls back to the plain self-graded "Got it / Missed it" flow.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+# Per-account daily cap on AI-grade calls (see models.User.ai_grade_count) -
+# there's only one concept check a day, but a user can hit "check with AI"
+# on it more than once, so this bounds abuse of a real API key rather than
+# assuming one grade per day.
+AI_GRADE_DAILY_LIMIT = int(os.environ.get("AI_GRADE_DAILY_LIMIT", "20"))
 
 # Signs per-user session cookies (see app/auth.py). Set a real random value
 # in production (e.g. `openssl rand -hex 32`) - the fallback below is fine

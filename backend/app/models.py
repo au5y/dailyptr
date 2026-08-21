@@ -24,6 +24,12 @@ class User(Base):
     # (see routers/challenges.py:/api/onboarding). Existing accounts from
     # before this field existed are backfilled to True - see database.py.
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Per-account daily quota for the Anthropic-backed concept-check AI
+    # grader (see ai_grading.py) - resets whenever ai_grade_count_date is
+    # behind today's date. Tracked on the user row rather than a separate
+    # table since it's just a single lazily-reset counter, not a log.
+    ai_grade_count: Mapped[int] = mapped_column(Integer, default=0)
+    ai_grade_count_date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
 
 
 class TrackSubscription(Base):

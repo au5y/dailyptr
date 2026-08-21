@@ -1,11 +1,34 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import ai_grading, models, schemas, scoring
+from .. import ai_grading, config, models, schemas, scoring
 from ..auth import get_current_user
 from ..database import get_db
 
 router = APIRouter(prefix="/api/concept", tags=["concept"])
+
+
+def _check_and_spend_ai_grade_quota(db: Session, user: models.User) -> None:
+    """Raises 429 once a user has spent AI_GRADE_DAILY_LIMIT calls today.
+    Spent *before* calling the API (not just on success) so a string of
+    failed/retried calls still counts against the cap - the whole point is
+    bounding real API spend, not just successful grades.
+
+    `user` comes from AuthMiddleware's own short-lived session (already
+    closed by the time routes run - see auth.py), so it's detached; mutating
+    it and committing on this route's `db` session would silently no-op.
+    Re-fetch the row into `db` first so the update actually persists."""
+    db_user = db.get(models.User, user.id)
+    today = date.today()
+    if db_user.ai_grade_count_date != today:
+        db_user.ai_grade_count = 0
+        db_user.ai_grade_count_date = today
+    if db_user.ai_grade_count >= config.AI_GRADE_DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"Daily AI-grade limit reached ({config.AI_GRADE_DAILY_LIMIT}/day) - try again tomorrow")
+    db_user.ai_grade_count += 1
+    db.commit()
 
 
 @router.post("/{day_id}/ai-grade", response_model=schemas.ConceptGradeOut)
@@ -20,6 +43,8 @@ def ai_grade_concept(day_id: int, body: schemas.ConceptGradeIn, db: Session = De
 
     if not body.notes.strip():
         raise HTTPException(status_code=400, detail="Write your answer first")
+
+    _check_and_spend_ai_grade_quota(db, user)
 
     try:
         correct, feedback = ai_grading.grade_concept(concept.prompt, concept.model_answer, body.notes)

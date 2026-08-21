@@ -235,6 +235,25 @@ def test_unauthenticated_api_request_is_rejected():
     assert resp.status_code == 401
 
 
+def test_ai_grade_enforces_daily_quota(client, monkeypatch):
+    from app import ai_grading, config
+    from app.routers import concept as concept_router
+
+    monkeypatch.setattr(config, "AI_GRADE_DAILY_LIMIT", 2)
+    monkeypatch.setattr(concept_router.config, "AI_GRADE_DAILY_LIMIT", 2)
+    monkeypatch.setattr(ai_grading, "grade_concept", lambda *a, **k: (True, "looks good"))
+
+    d = WEEK_START
+    day_id = client.get(f"/api/day/{d.isoformat()}").json()["day"]["id"]
+
+    for _ in range(2):
+        resp = client.post(f"/api/concept/{day_id}/ai-grade", json={"notes": "some answer"})
+        assert resp.status_code == 200
+
+    resp = client.post(f"/api/concept/{day_id}/ai-grade", json={"notes": "some answer"})
+    assert resp.status_code == 429
+
+
 def test_find_or_create_google_user_is_idempotent_per_sub():
     db = SessionLocal()
     try:
